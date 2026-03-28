@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CallBack AI — Every Missed Call Texts Back in 14 Seconds</title>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;0,9..144,900;1,9..144,700&family=Epilogue:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
   --bg: #faf8f4;
@@ -24,7 +24,7 @@ html { scroll-behavior: smooth; }
 body {
   background: var(--bg);
   color: var(--ink);
-  font-family: 'Epilogue', sans-serif;
+  font-family: 'Hanken Grotesk', sans-serif;
   overflow-x: hidden;
 }
 
@@ -40,7 +40,7 @@ nav {
 }
 
 .nav-logo {
-  font-family: 'Fraunces', serif;
+  font-family: 'Instrument Serif', serif;
   font-weight: 900;
   font-size: 20px;
   letter-spacing: -0.03em;
@@ -62,12 +62,12 @@ nav {
   background: var(--accent);
   color: #fff;
   padding: 10px 22px;
-  border-radius: 100px;
+  border-radius: 6px;
   font-size: 14px;
   font-weight: 600;
   text-decoration: none;
   transition: all 0.2s;
-  border: none; cursor: pointer; font-family: 'Epilogue', sans-serif;
+  border: none; cursor: pointer; font-family: 'Hanken Grotesk', sans-serif;
 }
 .nav-cta:hover { background: #d93a0e; transform: translateY(-1px); }
 
@@ -88,42 +88,10 @@ nav {
   pointer-events: none;
 }
 
-/* Floating orbs */
-.orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(60px);
-  opacity: 0.25;
-  pointer-events: none;
-}
-.orb-1 { width: 400px; height: 400px; background: var(--accent); top: -100px; right: -80px; animation: drift 8s ease-in-out infinite; }
-.orb-2 { width: 300px; height: 300px; background: var(--accent2); bottom: -60px; left: -60px; animation: drift 10s ease-in-out infinite reverse; }
-
-.hero-badge {
-  display: inline-flex; align-items: center; gap: 8px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 100px;
-  padding: 6px 16px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--green);
-  margin-bottom: 28px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-  animation: fadeUp 0.6s ease both;
-}
-
-.badge-dot {
-  width: 7px; height: 7px;
-  background: var(--green);
-  border-radius: 50%;
-  animation: pulse 2s infinite;
-}
-
 .hero h1 {
-  font-family: 'Fraunces', serif;
+  font-family: 'Instrument Serif', serif;
   font-weight: 900;
-  font-size: clamp(44px, 7vw, 88px);
+  font-size: clamp(40px, 6vw, 80px);
   line-height: 1.0;
   letter-spacing: -0.04em;
   max-width: 900px;
@@ -152,12 +120,12 @@ nav {
 
 .btn-big {
   padding: 16px 32px;
-  border-radius: 100px;
+  border-radius: 6px;
   font-size: 16px;
   font-weight: 700;
   cursor: pointer;
   border: none;
-  font-family: 'Epilogue', sans-serif;
+  font-family: 'Hanken Grotesk', sans-serif;
   transition: all 0.2s;
   text-decoration: none;
   display: inline-block;
@@ -198,7 +166,7 @@ nav {
 
 /* STATS BAND */
 .stats-band {
-  background: var(--ink);
+  background: #1a1714;
   padding: 32px 40px;
   display: flex; justify-content: center; gap: 0;
 }
@@ -212,7 +180,7 @@ nav {
 .stat-item:last-child { border-right: none; }
 
 .stat-num {
-  font-family: 'Fraunces', serif;
+  font-family: 'Instrument Serif', serif;
   font-size: 40px;
   font-weight: 900;
   color: #fff;
@@ -231,8 +199,8 @@ nav {
 }
 
 .section-label {
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 600;
   letter-spacing: 0.15em;
   text-transform: uppercase;
   color: var(--accent);
@@ -240,7 +208,7 @@ nav {
 }
 
 .section-title {
-  font-family: 'Fraunces', serif;
+  font-family: 'Instrument Serif', serif;
   font-weight: 900;
   font-size: clamp(32px, 4vw, 52px);
   letter-spacing: -0.03em;
@@ -283,7 +251,7 @@ nav {
 }
 
 .problem-icon { font-size: 28px; margin-bottom: 14px; }
-.problem-title { font-family: 'Fraunces', serif; font-weight: 700; font-size: 19px; margin-bottom: 8px; letter-spacing: -0.02em; }
+.problem-title { font-family: 'Instrument Serif', serif; font-weight: 700; font-size: 19px; margin-bottom: 8px; letter-spacing: -0.02em; }
 .problem-text { font-size: 14px; color: var(--muted); line-height: 1.6; }
 
 /* HOW IT WORKS */
@@ -303,7 +271,7 @@ nav {
 
 .steps {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 0;
   margin-top: 56px;
   position: relative;
@@ -328,7 +296,7 @@ nav {
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.12);
   display: flex; align-items: center; justify-content: center;
-  font-family: 'Fraunces', serif;
+  font-family: 'Instrument Serif', serif;
   font-size: 22px;
   font-weight: 900;
   color: var(--accent2);
@@ -415,7 +383,7 @@ nav {
 }
 
 .price-plan { font-size: 13px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 16px; opacity: 0.6; }
-.price-amount { font-family: 'Fraunces', serif; font-size: 48px; font-weight: 900; letter-spacing: -0.04em; line-height: 1; }
+.price-amount { font-family: 'Instrument Serif', serif; font-size: 48px; font-weight: 900; letter-spacing: -0.04em; line-height: 1; }
 .price-period { font-size: 14px; opacity: 0.6; margin-left: 2px; }
 .price-desc { font-size: 13.5px; color: var(--muted); margin: 12px 0 24px; line-height: 1.5; }
 
@@ -435,8 +403,8 @@ nav {
 .price-btn {
   width: 100%;
   padding: 13px;
-  border-radius: 100px;
-  font-family: 'Epilogue', sans-serif;
+  border-radius: 6px;
+  font-family: 'Hanken Grotesk', sans-serif;
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
@@ -481,36 +449,30 @@ nav {
 
 /* CTA SECTION */
 .cta-section {
-  background: var(--accent);
+  background: var(--ink);
   padding: 96px 24px;
   text-align: center;
   position: relative;
   overflow: hidden;
 }
 
-.cta-section::before {
-  content: '';
-  position: absolute; inset: 0;
-  background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-}
-
 .cta-section .section-title { color: #fff; margin: 0 auto 16px; text-align: center; max-width: 700px; }
 .cta-sub { font-size: 18px; color: rgba(255,255,255,0.75); margin-bottom: 40px; }
 .cta-btn {
-  background: #fff;
-  color: var(--accent);
+  background: var(--accent);
+  color: #fff;
   padding: 18px 40px;
-  border-radius: 100px;
+  border-radius: 6px;
   font-size: 17px;
   font-weight: 700;
   border: none;
   cursor: pointer;
-  font-family: 'Epilogue', sans-serif;
+  font-family: 'Hanken Grotesk', sans-serif;
   transition: all 0.2s;
   display: inline-block;
   text-decoration: none;
 }
-.cta-btn:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,0.2); }
+.cta-btn:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(255,77,28,0.35); }
 .cta-note { font-size: 13px; color: rgba(255,255,255,0.55); margin-top: 16px; }
 
 /* FOOTER */
@@ -525,7 +487,7 @@ footer {
 }
 
 .footer-logo {
-  font-family: 'Fraunces', serif;
+  font-family: 'Instrument Serif', serif;
   font-weight: 900;
   font-size: 18px;
   color: #fff;
@@ -560,7 +522,7 @@ footer {
   .nav-links { display: none; }
   .stats-band { flex-direction: column; gap: 24px; }
   .stat-item { border-right: none; border-bottom: 1px solid rgba(255,255,255,0.1); padding: 16px 0; }
-  .problem-grid, .steps, .industries, .pricing-grid, .testi-grid { grid-template-columns: 1fr; }
+  .problem-grid, .steps, .industries { grid-template-columns: 1fr; }
   .steps::before { display: none; }
 }
 </style>
@@ -579,14 +541,6 @@ footer {
 
 <!-- HERO -->
 <section class="hero">
-  <div class="orb orb-1"></div>
-  <div class="orb orb-2"></div>
-
-  <div class="hero-badge">
-    <span class="badge-dot"></span>
-    Auto-reply fires in under 14 seconds
-  </div>
-
   <h1>Every missed call<br>texts back <em>instantly.</em></h1>
 
   <p class="hero-sub">Small businesses lose thousands every month to missed calls. CallBack AI texts every missed caller within seconds — automatically — so you never lose a lead again.</p>
@@ -667,18 +621,13 @@ footer {
       </div>
       <div class="step reveal">
         <div class="step-num">2</div>
-        <div class="step-title">Call comes in, goes missed</div>
-        <div class="step-text">You're busy. The call rings out. Normally that's a lost customer.</div>
+        <div class="step-title">Call comes in unanswered</div>
+        <div class="step-text">You're on a job. The call rings out. Normally that's money walking out the door.</div>
       </div>
       <div class="step reveal">
         <div class="step-num">3</div>
-        <div class="step-title">AI texts them in 14s</div>
-        <div class="step-text">A warm, branded SMS fires instantly — asking what they need and when works.</div>
-      </div>
-      <div class="step reveal">
-        <div class="step-num">4</div>
-        <div class="step-title">You close the job</div>
-        <div class="step-text">Reply from the dashboard or your phone. Convert in your own time. Never lose a lead.</div>
+        <div class="step-title">AI texts them, you close the job</div>
+        <div class="step-text">A warm SMS fires in seconds. Reply from your phone. Convert in your own time.</div>
       </div>
     </div>
   </div>
@@ -726,49 +675,16 @@ footer {
     <h2 class="section-title">Simple pricing. No contracts.</h2>
     <p class="pricing-sub">Cancel anytime. Most businesses recover the cost in their first week.</p>
 
-    <div class="pricing-grid">
-      <div class="price-card reveal">
-        <div class="price-plan">Starter</div>
-        <div class="price-amount">€49<span class="price-period">/mo</span></div>
-        <p class="price-desc">Perfect for solo traders and small operations.</p>
-        <ul class="features">
-          <li class="feature-item"><span class="check">✓</span> 1 phone number</li>
-          <li class="feature-item"><span class="check">✓</span> 100 auto-replies/month</li>
-          <li class="feature-item"><span class="check">✓</span> SMS dashboard</li>
-          <li class="feature-item"><span class="check">✓</span> Basic analytics</li>
-          <li class="feature-item"><span class="check">✓</span> Email support</li>
-        </ul>
-        <button class="price-btn">Start Free Trial</button>
+    <div style="text-align:center;margin-top:32px">
+      <div style="font-size:48px;font-weight:900;font-family:'Instrument Serif',serif;letter-spacing:-0.04em">
+        €99<span style="font-size:20px;font-weight:400;color:var(--muted)">/month</span>
       </div>
-
-      <div class="price-card featured reveal">
-        <div class="popular-tag">Most Popular</div>
-        <div class="price-plan">Pro</div>
-        <div class="price-amount">€99<span class="price-period">/mo</span></div>
-        <p class="price-desc">For growing businesses that can't afford to miss a lead.</p>
-        <ul class="features">
-          <li class="feature-item"><span class="check">✓</span> 3 phone numbers</li>
-          <li class="feature-item"><span class="check">✓</span> Unlimited auto-replies</li>
-          <li class="feature-item"><span class="check">✓</span> AI reply composer</li>
-          <li class="feature-item"><span class="check">✓</span> Revenue tracking</li>
-          <li class="feature-item"><span class="check">✓</span> Priority support</li>
-        </ul>
-        <button class="price-btn">Start Free Trial</button>
-      </div>
-
-      <div class="price-card reveal">
-        <div class="price-plan">Agency</div>
-        <div class="price-amount">€249<span class="price-period">/mo</span></div>
-        <p class="price-desc">Manage multiple locations or resell to your clients.</p>
-        <ul class="features">
-          <li class="feature-item"><span class="check">✓</span> Up to 20 numbers</li>
-          <li class="feature-item"><span class="check">✓</span> White-label dashboard</li>
-          <li class="feature-item"><span class="check">✓</span> Client management</li>
-          <li class="feature-item"><span class="check">✓</span> API access</li>
-          <li class="feature-item"><span class="check">✓</span> Dedicated onboarding</li>
-        </ul>
-        <button class="price-btn">Talk to Sales</button>
-      </div>
+      <p style="color:var(--muted);font-size:16px;margin:8px 0 28px">
+        14-day free trial. No setup fees. Cancel anytime.
+      </p>
+      <a href="callback-onboarding.html" class="btn-big primary">
+        Start Free Trial →
+      </a>
     </div>
   </div>
 </section>
