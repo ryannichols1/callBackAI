@@ -82,9 +82,18 @@ const INDUSTRY_TONES = {
 // Without this anyone can hit your endpoint and trigger fake SMS sends.
 
 function validateTwilioSignature(req, res, next) {
-  const signature = req.headers['x-twilio-signature'];
-  const url       = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
-  const isValid   = twilio.validateRequest(process.env.TWILIO_AUTH_TOKEN, signature, url, req.body);
+  const twilioSignature = req.headers['x-twilio-signature'];
+
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+  const host     = req.headers['x-forwarded-host']  || req.get('host');
+  const url      = `${protocol}://${host}${req.originalUrl}`;
+
+  const isValid = twilio.validateRequest(
+    process.env.TWILIO_AUTH_TOKEN,
+    twilioSignature,
+    url,
+    req.body
+  );
 
   if (!isValid) {
     console.warn(`Invalid Twilio signature from ${req.ip} on ${req.path}`);
