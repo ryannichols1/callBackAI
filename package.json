@@ -1,0 +1,22 @@
+{
+  "name": "callback-ai-server",
+  "version": "1.0.0",
+  "main": "callback-webhook-server.js",
+  "scripts": {
+    "start": "node callback-webhook-server.js",
+    "dev": "nodemon callback-webhook-server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.20.0",
+    "@sinch/sdk-core": "^1.3.0",
+    "@supabase/supabase-js": "^2.39.0",
+    "dotenv": "^16.4.0",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.2.0",
+    "helmet": "^7.1.0",
+    "twilio": "^4.23.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.0"
+  }
+}
