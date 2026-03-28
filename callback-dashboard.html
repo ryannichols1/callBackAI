@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CallBack AI — Missed Call Recovery</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f7f5f0;
+  --surface: #ffffff;
+  --surface2: #f0ede6;
+  --border: #e2ddd5;
+  --text: #1a1714;
+  --muted: #9a9389;
+  --accent: #e84c2b;
+  --accent-soft: #fdf0ed;
+  --green: #1a7a4a;
+  --green-soft: #e8f5ee;
+  --yellow: #d4850a;
+  --yellow-soft: #fef6e4;
+  --blue: #1a4fd4;
+  --blue-soft: #eef2fd;
+  --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.1);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Instrument Sans', sans-serif;
+  min-height: 100vh;
+  display: flex;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 240px;
+  background: var(--text);
+  min-height: 100vh;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  z-index: 100;
+}
+
+.sidebar-logo {
+  padding: 24px 20px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.logo-mark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.logo-icon {
+  width: 32px; height: 32px;
+  background: var(--accent);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+}
+
+.logo-name {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-weight: 800;
+  font-size: 17px;
+  color: #fff;
+  letter-spacing: -0.02em;
+}
+
+.logo-sub {
+  font-size: 11px;
+  color: rgba(255,255,255,0.35);
+  letter-spacing: 0.05em;
+  padding-left: 42px;
+  margin-top: -2px;
+}
+
+.biz-selector {
+  margin: 16px 12px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.08);
+  transition: background 0.2s;
+}
+
+.biz-selector:hover { background: rgba(255,255,255,0.1); }
+
+.biz-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 2px;
+}
+
+.biz-type {
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+}
+
+.biz-chevron { float: right; color: rgba(255,255,255,0.3); font-size: 12px; margin-top: -16px; }
+
+.nav {
+  padding: 8px 12px;
+  flex: 1;
+}
+
+.nav-section {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.25);
+  padding: 12px 8px 6px;
+  font-weight: 600;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: rgba(255,255,255,0.55);
+  font-size: 13.5px;
+  font-weight: 500;
+  transition: all 0.15s;
+  margin-bottom: 2px;
+}
+
+.nav-item:hover { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.85); }
+.nav-item.active { background: rgba(232,76,43,0.2); color: #fff; }
+.nav-item.active .nav-icon { color: var(--accent); }
+.nav-icon { font-size: 15px; width: 18px; text-align: center; }
+
+.nav-badge {
+  margin-left: auto;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 100px;
+}
+
+.sidebar-footer {
+  padding: 16px 12px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.plan-badge {
+  background: rgba(255,255,255,0.06);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 11.5px;
+  color: rgba(255,255,255,0.5);
+}
+
+.plan-badge strong { color: #fff; display: block; font-size: 12px; margin-bottom: 2px; }
+
+/* Main */
+.main {
+  margin-left: 240px;
+  flex: 1;
+  padding: 32px;
+  min-height: 100vh;
+}
+
+/* Topbar */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+
+.page-title {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-weight: 800;
+  font-size: 26px;
+  letter-spacing: -0.03em;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--green-soft);
+  color: var(--green);
+  border-radius: 100px;
+  padding: 6px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.status-dot {
+  width: 7px; height: 7px;
+  background: var(--green);
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+.btn {
+  padding: 9px 18px;
+  border-radius: 8px;
+  font-family: 'Instrument Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+}
+
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: #c93a20; transform: translateY(-1px); }
+.btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+.btn-ghost:hover { border-color: var(--text); color: var(--text); }
+
+/* Stats row */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: var(--surface);
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+  animation: fadeUp 0.4s ease both;
+}
+
+.stat-card:nth-child(1) { animation-delay: 0.05s; }
+.stat-card:nth-child(2) { animation-delay: 0.1s; }
+.stat-card:nth-child(3) { animation-delay: 0.15s; }
+.stat-card:nth-child(4) { animation-delay: 0.2s; }
+
+.stat-label {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stat-value {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.stat-delta {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.stat-delta.up { color: var(--green); }
+.stat-delta.neutral { color: var(--muted); }
+
+.stat-accent { position: absolute; top: 0; right: 0; width: 4px; height: 100%; }
+.red { background: var(--accent); }
+.green-bar { background: var(--green); }
+.yellow-bar { background: #f0a500; }
+.blue-bar { background: var(--blue); }
+
+/* Main grid */
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 16px;
+}
+
+/* Call feed */
+.card {
+  background: var(--surface);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  animation: fadeUp 0.4s 0.25s ease both;
+}
+
+.card-header {
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-title {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.02em;
+}
+
+.filter-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 3px;
+}
+
+.filter-tab {
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--muted);
+  transition: all 0.15s;
+  border: none;
+  background: transparent;
+  font-family: 'Instrument Sans', sans-serif;
+}
+
+.filter-tab.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+/* Call rows */
+.call-list { }
+
+.call-row {
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+  position: relative;
+}
+
+.call-row:hover { background: var(--surface2); }
+.call-row:last-child { border-bottom: none; }
+.call-row.selected { background: var(--accent-soft); }
+.call-row.selected::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--accent);
+  border-radius: 0 2px 2px 0;
+}
+
+.caller-avatar {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px;
+  flex-shrink: 0;
+  font-weight: 700;
+  font-family: 'Bricolage Grotesque', sans-serif;
+}
+
+.avatar-red { background: var(--accent-soft); color: var(--accent); }
+.avatar-blue { background: var(--blue-soft); color: var(--blue); }
+.avatar-green { background: var(--green-soft); color: var(--green); }
+.avatar-yellow { background: var(--yellow-soft); color: var(--yellow); }
+
+.call-info { flex: 1; min-width: 0; }
+
+.caller-name {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.caller-number {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.call-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.call-time {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.call-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 100px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.status-replied { background: var(--green-soft); color: var(--green); }
+.status-pending { background: var(--yellow-soft); color: var(--yellow); }
+.status-new { background: var(--accent-soft); color: var(--accent); }
+.status-converted { background: var(--blue-soft); color: var(--blue); }
+
+/* Right panel */
+.right-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Detail card */
+.detail-card {
+  background: var(--surface);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  animation: fadeUp 0.4s 0.3s ease both;
+}
+
+.detail-header {
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--accent);
+  color: #fff;
+}
+
+.detail-caller {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+  margin-bottom: 2px;
+}
+
+.detail-number { font-size: 13px; opacity: 0.8; }
+.detail-time { font-size: 12px; opacity: 0.65; margin-top: 6px; }
+
+.detail-body { padding: 18px 20px; }
+
+.detail-section {
+  margin-bottom: 18px;
+}
+
+.detail-section-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.sms-bubble {
+  background: var(--surface2);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+  border: 1px solid var(--border);
+  position: relative;
+}
+
+.sms-bubble.sent {
+  background: var(--accent-soft);
+  border-color: rgba(232,76,43,0.15);
+}
+
+.sms-meta {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 6px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.ai-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--blue-soft);
+  color: var(--blue);
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.reply-input-wrap {
+  margin-top: 4px;
+}
+
+.reply-textarea {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-family: 'Instrument Sans', sans-serif;
+  font-size: 13px;
+  color: var(--text);
+  resize: none;
+  outline: none;
+  transition: border-color 0.2s;
+  min-height: 72px;
+}
+
+.reply-textarea:focus { border-color: var(--accent); }
+
+.reply-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.tag-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tag {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.tag:hover { border-color: var(--accent); color: var(--accent); }
+
+/* AI message composer */
+.ai-composer {
+  background: var(--surface);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  animation: fadeUp 0.4s 0.35s ease both;
+}
+
+.ai-composer-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--blue-soft);
+}
+
+.ai-composer-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--blue);
+  flex: 1;
+}
+
+.ai-composer-body { padding: 14px 18px; }
+
+.industry-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.chip {
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-family: 'Instrument Sans', sans-serif;
+  transition: all 0.15s;
+}
+
+.chip:hover { border-color: var(--blue); color: var(--blue); }
+.chip.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+
+.generate-sms-btn {
+  width: 100%;
+  padding: 10px;
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-family: 'Instrument Sans', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-top: 4px;
+}
+
+.generate-sms-btn:hover { background: #1340b0; }
+.generate-sms-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.generated-sms {
+  margin-top: 12px;
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  border: 1px solid var(--border);
+  display: none;
+  color: var(--text);
+}
+
+.generated-sms.visible { display: block; animation: fadeUp 0.3s ease both; }
+
+.use-btn {
+  margin-top: 8px;
+  width: 100%;
+  padding: 8px;
+  background: transparent;
+  border: 1px solid var(--green);
+  color: var(--green);
+  border-radius: 7px;
+  font-family: 'Instrument Sans', sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.use-btn:hover { background: var(--green); color: #fff; }
+
+/* Mini chart */
+.chart-wrap {
+  padding: 18px 22px;
+}
+
+.chart-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 80px;
+  margin-bottom: 8px;
+}
+
+.chart-bar-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  justify-content: flex-end;
+}
+
+.chart-bar {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  transition: height 0.5s ease;
+  position: relative;
+}
+
+.chart-bar.missed { background: var(--accent); opacity: 0.85; }
+.chart-bar.recovered { background: var(--green); opacity: 0.85; }
+
+.chart-label {
+  font-size: 10px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.chart-legend {
+  display: flex;
+  gap: 14px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.legend-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 2px;
+  margin-right: 4px;
+}
+
+/* Animations */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spinner {
+  display: inline-block;
+  width: 13px; height: 13px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark">
+      <div class="logo-icon">📞</div>
+      <span class="logo-name">CallBack AI</span>
+    </div>
+    <div class="logo-sub">Missed Call Recovery</div>
+  </div>
+
+  <div class="biz-selector">
+    <div class="biz-name">Murphy's Plumbing</div>
+    <div class="biz-type">Trades · Dublin 6</div>
+    <div class="biz-chevron">⌄</div>
+  </div>
+
+  <nav class="nav">
+    <div class="nav-section">Main</div>
+    <div class="nav-item active">
+      <span class="nav-icon">📋</span> Missed Calls
+      <span class="nav-badge">7</span>
+    </div>
+    <div class="nav-item">
+      <span class="nav-icon">💬</span> Conversations
+    </div>
+    <div class="nav-item">
+      <span class="nav-icon">📅</span> Appointments
+    </div>
+    <div class="nav-item">
+      <span class="nav-icon">📈</span> Analytics
+    </div>
+    <div class="nav-section">Settings</div>
+    <div class="nav-item">
+      <span class="nav-icon">⚙️</span> Auto-Reply Setup
+    </div>
+    <div class="nav-item">
+      <span class="nav-icon">🏢</span> Business Profile
+    </div>
+    <div class="nav-item">
+      <span class="nav-icon">💳</span> Billing
+    </div>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="plan-badge">
+      <strong>Pro Plan · €79/mo</strong>
+      Unlimited auto-replies · AI drafts
+    </div>
+  </div>
+</aside>
+
+<!-- Main -->
+<main class="main">
+  <div class="topbar">
+    <div>
+      <div class="page-title">Missed Calls</div>
+    </div>
+    <div class="topbar-right">
+      <div class="status-pill">
+        <span class="status-dot"></span>
+        Auto-Reply Active
+      </div>
+      <button class="btn btn-ghost">Export</button>
+      <button class="btn btn-primary">+ Add Number</button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-accent red"></div>
+      <div class="stat-label">📵 Missed This Week</div>
+      <div class="stat-value">24</div>
+      <div class="stat-delta up">↑ 3 from last week</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-accent green-bar"></div>
+      <div class="stat-label">✅ Recovered</div>
+      <div class="stat-value">18</div>
+      <div class="stat-delta up">75% recovery rate</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-accent yellow-bar"></div>
+      <div class="stat-label">💰 Est. Revenue Saved</div>
+      <div class="stat-value">€2.1k</div>
+      <div class="stat-delta up">↑ €400 vs last week</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-accent blue-bar"></div>
+      <div class="stat-label">⚡ Avg. Reply Time</div>
+      <div class="stat-value">14s</div>
+      <div class="stat-delta neutral">Auto-SMS fired</div>
+    </div>
+  </div>
+
+  <!-- Chart + grid -->
+  <div class="main-grid">
+    <!-- Left: call list -->
+    <div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-header">
+          <div class="card-title">This Week</div>
+          <div class="filter-tabs">
+            <button class="filter-tab active" onclick="filterCalls(this,'all')">All</button>
+            <button class="filter-tab" onclick="filterCalls(this,'new')">New</button>
+            <button class="filter-tab" onclick="filterCalls(this,'pending')">Pending</button>
+            <button class="filter-tab" onclick="filterCalls(this,'converted')">Converted</button>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <div class="chart-bars" id="chartBars"></div>
+          <div class="chart-legend">
+            <span><span class="legend-dot" style="background:var(--accent)"></span>Missed</span>
+            <span><span class="legend-dot" style="background:var(--green)"></span>Recovered</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Incoming Calls</div>
+        </div>
+        <div class="call-list" id="callList"></div>
+      </div>
+    </div>
+
+    <!-- Right panel -->
+    <div class="right-panel">
+
+      <!-- Detail card -->
+      <div class="detail-card" id="detailCard">
+        <div class="detail-header">
+          <div class="detail-caller" id="detailName">Sarah O'Brien</div>
+          <div class="detail-number" id="detailNumber">+353 87 412 8834</div>
+          <div class="detail-time" id="detailTime">Today at 11:42am · Missed · 0:00 duration</div>
+        </div>
+        <div class="detail-body">
+          <div class="detail-section">
+            <div class="detail-section-label">Auto-SMS Sent <span class="ai-tag">🤖 AI</span></div>
+            <div class="sms-bubble sent" id="smsSent">
+              Hi Sarah! Sorry we missed your call at Murphy's Plumbing. We'd love to help — what did you need us for? Reply here and we'll get back to you straight away! 🔧
+            </div>
+            <div class="sms-meta">
+              <span>Sent 14s after missed call</span>
+              <span style="color:var(--green)">✓ Delivered</span>
+            </div>
+          </div>
+
+          <div class="detail-section">
+            <div class="detail-section-label">Customer Reply</div>
+            <div class="sms-bubble" id="customerReply">
+              Hi! Yeah I need someone to look at a leaking pipe under my kitchen sink — pretty urgent if possible?
+            </div>
+            <div class="sms-meta">
+              <span>Replied 3 mins later</span>
+            </div>
+          </div>
+
+          <div class="detail-section">
+            <div class="detail-section-label">Your Reply</div>
+            <textarea class="reply-textarea" id="replyText" placeholder="Type a reply or use AI to generate one..."></textarea>
+            <div class="reply-actions">
+              <button class="btn btn-primary" style="flex:1" onclick="sendReply()">Send SMS</button>
+              <button class="btn btn-ghost" onclick="markConverted()">Mark Converted ✓</button>
+            </div>
+          </div>
+
+          <div class="detail-section">
+            <div class="detail-section-label">Quick Tags</div>
+            <div class="tag-row">
+              <div class="tag">🔧 Repair</div>
+              <div class="tag">💧 Emergency</div>
+              <div class="tag">📅 Book In</div>
+              <div class="tag">💰 Quote</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI composer -->
+      <div class="ai-composer">
+        <div class="ai-composer-header">
+          <span>🤖</span>
+          <span class="ai-composer-title">AI Reply Composer</span>
+        </div>
+        <div class="ai-composer-body">
+          <div class="detail-section-label" style="margin-bottom:8px">Industry tone</div>
+          <div class="industry-chips">
+            <button class="chip active" data-ind="trades" onclick="selectIndustry(this)">🔧 Trades</button>
+            <button class="chip" data-ind="dental" onclick="selectIndustry(this)">🦷 Dental</button>
+            <button class="chip" data-ind="salon" onclick="selectIndustry(this)">💅 Salon</button>
+            <button class="chip" data-ind="realestate" onclick="selectIndustry(this)">🏠 Property</button>
+            <button class="chip" data-ind="restaurant" onclick="selectIndustry(this)">🍽 Restaurant</button>
+          </div>
+
+          <div class="detail-section-label" style="margin-bottom:8px">Context (optional)</div>
+          <textarea class="reply-textarea" id="aiContext" style="min-height:52px" placeholder="e.g. Customer needs urgent pipe repair, wants quote today"></textarea>
+
+          <button class="generate-sms-btn" id="genBtn" onclick="generateAIReply()">
+            ✨ Generate Smart Reply
+          </button>
+
+          <div class="generated-sms" id="generatedSms"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<script>
+const calls = [
+  { id:1, name:"Sarah O'Brien", number:"+353 87 412 8834", time:"11:42am", status:"pending", avatar:"S", color:"avatar-red", msg:"Leaking pipe under sink — urgent" },
+  { id:2, name:"Tom Gallagher", number:"+353 85 221 7743", time:"10:18am", status:"replied", avatar:"T", color:"avatar-blue", msg:"Looking for a boiler service quote" },
+  { id:3, name:"Unknown Caller", number:"+353 86 904 5521", time:"9:55am", status:"new", avatar:"?", color:"avatar-yellow", msg:"No reply yet" },
+  { id:4, name:"Anne Walsh", number:"+353 83 778 2210", time:"Yesterday", status:"converted", avatar:"A", color:"avatar-green", msg:"Bathroom tap replacement — booked ✓" },
+  { id:5, name:"Declan Byrne", number:"+353 87 334 9981", time:"Yesterday", status:"replied", avatar:"D", color:"avatar-blue", msg:"Emergency drain blockage" },
+  { id:6, name:"Maria Connolly", number:"+353 85 661 4402", time:"Mon", status:"converted", avatar:"M", color:"avatar-green", msg:"Full bathroom refit quote — booked ✓" },
+  { id:7, name:"James Farrell", number:"+353 86 220 8873", time:"Mon", status:"new", avatar:"J", color:"avatar-red", msg:"No reply yet" },
+];
+
+const statusLabel = {
+  new: '<span class="call-status status-new">● New</span>',
+  pending: '<span class="call-status status-pending">● Pending</span>',
+  replied: '<span class="call-status status-replied">● Replied</span>',
+  converted: '<span class="call-status status-converted">● Converted</span>',
+};
+
+let selectedCall = calls[0];
+let activeFilter = 'all';
+let selectedIndustry = 'trades';
+
+function renderCalls() {
+  const list = document.getElementById('callList');
+  const filtered = activeFilter === 'all' ? calls : calls.filter(c => c.status === activeFilter);
+  list.innerHTML = filtered.map(c => `
+    <div class="call-row ${selectedCall.id === c.id ? 'selected' : ''}" onclick="selectCall(${c.id})">
+      <div class="caller-avatar ${c.color}">${c.avatar}</div>
+      <div class="call-info">
+        <div class="caller-name">${c.name}</div>
+        <div class="caller-number">${c.msg}</div>
+      </div>
+      <div class="call-meta">
+        <span class="call-time">${c.time}</span>
+        ${statusLabel[c.status]}
+      </div>
+    </div>
+  `).join('');
+}
+
+function selectCall(id) {
+  selectedCall = calls.find(c => c.id === id);
+  document.getElementById('detailName').textContent = selectedCall.name;
+  document.getElementById('detailNumber').textContent = selectedCall.number;
+  document.getElementById('detailTime').textContent = `${selectedCall.time} · Missed · 0:00 duration`;
+  document.getElementById('replyText').value = '';
+  document.getElementById('generatedSms').className = 'generated-sms';
+  renderCalls();
+}
+
+function filterCalls(el, filter) {
+  activeFilter = filter;
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderCalls();
+}
+
+function selectIndustry(el) {
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  selectedIndustry = el.dataset.ind;
+}
+
+function sendReply() {
+  const txt = document.getElementById('replyText').value.trim();
+  if (!txt) return;
+  const call = calls.find(c => c.id === selectedCall.id);
+  call.status = 'replied';
+  document.getElementById('replyText').value = '';
+  renderCalls();
+  showToast('SMS sent to ' + selectedCall.name + ' ✓');
+}
+
+function markConverted() {
+  const call = calls.find(c => c.id === selectedCall.id);
+  call.status = 'converted';
+  renderCalls();
+  showToast('Marked as converted 💰');
+}
+
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.style.cssText = `position:fixed;bottom:28px;right:28px;background:#1a1714;color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:9999;animation:fadeUp 0.3s ease;box-shadow:0 8px 30px rgba(0,0,0,0.2)`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2800);
+}
+
+const industryPrompts = {
+  trades: "You run a plumbing/trades business. Reply is warm, practical, urgent-friendly.",
+  dental: "You run a dental clinic. Reply is professional, reassuring, appointment-focused.",
+  salon: "You run a hair/beauty salon. Reply is friendly, warm, booking-focused.",
+  realestate: "You're a property/real estate agent. Reply is professional and responsive.",
+  restaurant: "You run a restaurant. Reply is warm, welcoming, focused on reservations or enquiries."
+};
+
+async function generateAIReply() {
+  const context = document.getElementById('aiContext').value.trim();
+  const btn = document.getElementById('genBtn');
+  const output = document.getElementById('generatedSms');
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Generating...';
+  output.className = 'generated-sms';
+  output.innerHTML = '';
+
+  const industryContext = industryPrompts[selectedIndustry] || industryPrompts.trades;
+  const callerName = selectedCall.name !== 'Unknown Caller' ? selectedCall.name.split(' ')[0] : 'there';
+
+  const prompt = `You are writing a SHORT SMS reply (max 60 words) from a small business to a customer who missed a call.
+
+Business type: ${industryContext}
+Customer name: ${callerName}
+${context ? `Situation: ${context}` : 'Customer called and needs help — no further context.'}
+
+Write ONLY the SMS text. No quotes, no explanation. Keep it warm, human, and action-oriented. Include a clear next step (book, call back, reply with details).`;
+
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 150,
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
+
+    const data = await response.json();
+    const text = data.content?.map(b => b.text || '').join('') || '';
+
+    output.innerHTML = `
+      <div style="margin-bottom:10px;line-height:1.6">${text.trim()}</div>
+      <button class="use-btn" onclick="useGeneratedReply(\`${text.trim().replace(/`/g,'\\`')}\`)">↑ Use This Reply</button>
+    `;
+    output.className = 'generated-sms visible';
+  } catch(e) {
+    output.innerHTML = '<span style="color:var(--accent)">Error generating — check connection.</span>';
+    output.className = 'generated-sms visible';
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '✨ Generate Smart Reply';
+}
+
+function useGeneratedReply(text) {
+  document.getElementById('replyText').value = text;
+  document.getElementById('replyText').focus();
+}
+
+// Build chart
+function buildChart() {
+  const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const missed = [5,3,7,4,6,2,4];
+  const recovered = [4,2,5,3,5,2,3];
+  const max = Math.max(...missed);
+  const wrap = document.getElementById('chartBars');
+  wrap.innerHTML = days.map((d,i) => `
+    <div class="chart-bar-wrap">
+      <div style="display:flex;gap:2px;align-items:flex-end;width:100%;height:72px">
+        <div class="chart-bar missed" style="height:${(missed[i]/max)*100}%;flex:1"></div>
+        <div class="chart-bar recovered" style="height:${(recovered[i]/max)*100}%;flex:1"></div>
+      </div>
+      <div class="chart-label">${d}</div>
+    </div>
+  `).join('');
+}
+
+buildChart();
+renderCalls();
+</script>
+</body>
+</html>

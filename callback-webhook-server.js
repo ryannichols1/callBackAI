@@ -24,7 +24,6 @@ require('dotenv').config();
 const express   = require('express');
 const twilio    = require('twilio');
 const Anthropic = require('@anthropic-ai/sdk');
-const { SinchClient } = require('@sinch/sdk-core');
 const { createClient } = require('@supabase/supabase-js');
 const helmet    = require('helmet');
 const rateLimit = require('express-rate-limit');
