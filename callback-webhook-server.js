@@ -28,6 +28,8 @@ const { createClient } = require('@supabase/supabase-js');
 const helmet    = require('helmet');
 const rateLimit = require('express-rate-limit');
 const crypto    = require('crypto');
+const Stripe    = require('stripe');
+const stripe    = Stripe(process.env.STRIPE_SECRET_KEY);
 
 // ─── [FIX 1] Validate all required env vars on startup ───────────────────────
 // Fail immediately if any secret is missing — never run half-configured.
@@ -35,6 +37,7 @@ const crypto    = require('crypto');
 const REQUIRED_ENV = [
   'TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_PHONE_NUMBER',
   'ANTHROPIC_API_KEY', 'SUPABASE_URL', 'SUPABASE_SERVICE_KEY', 'API_SECRET',
+  'STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID',
 ];
 const missing = REQUIRED_ENV.filter(k => !process.env[k]);
 if (missing.length > 0) {
@@ -330,6 +333,78 @@ app.get('/api/businesses/:businessId/calls', requireApiAuth, async (req, res) =>
 // ─── ROUTE 6: Health check ────────────────────────────────────────────────────
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
+
+// ─── ROUTE: Onboard new business ─────────────────────────────────────────────
+
+app.post('/api/onboard', async (req, res) => {
+  const { paymentMethodId, business } = req.body;
+
+  if (!paymentMethodId || !business?.name || !business?.email || !business?.phone) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  const cleanPhone = business.phone.replace(/\s/g, '');
+  if (!isValidPhone(cleanPhone)) {
+    return res.status(400).json({ error: 'Invalid phone number' });
+  }
+
+  try {
+    const customer = await stripe.customers.create({
+      email: business.email,
+      name: business.name,
+      phone: cleanPhone,
+      payment_method: paymentMethodId,
+      invoice_settings: { default_payment_method: paymentMethodId },
+      metadata: { industry: business.industry || 'general' },
+    });
+
+    const subscription = await stripe.subscriptions.create({
+      customer: customer.id,
+      items: [{ price: process.env.STRIPE_PRICE_ID }],
+      trial_period_days: 14,
+      payment_settings: {
+        payment_method_types: ['card'],
+        save_default_payment_method: 'on_subscription',
+      },
+    });
+
+    const { data: newBusiness, error: dbError } = await supabase
+      .from('businesses')
+      .insert({
+        name: safeName(business.name),
+        industry: isValidIndustry(business.industry) ? business.industry : 'general',
+        phone: cleanPhone,
+        twilio_number: process.env.TWILIO_PHONE_NUMBER,
+        stripe_customer_id: customer.id,
+        stripe_subscription_id: subscription.id,
+        trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+        email: business.email,
+      })
+      .select('id')
+      .single();
+
+    if (dbError) {
+      console.error('Supabase insert error:', dbError.message);
+      return res.status(500).json({ error: 'Failed to create account' });
+    }
+
+    console.log(`New business onboarded: ${business.name} (${newBusiness.id})`);
+
+    res.json({
+      success: true,
+      businessId: newBusiness.id,
+      trialEndsAt: subscription.trial_end,
+      subscriptionId: subscription.id,
+    });
+
+  } catch (err) {
+    console.error('Onboarding error:', err.message);
+    if (err.type === 'StripeCardError') {
+      return res.status(400).json({ error: err.message });
+    }
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
+  }
+});
 
 // ─── Catch-all 404 ────────────────────────────────────────────────────────────
 
