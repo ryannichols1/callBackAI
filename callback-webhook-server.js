@@ -26,6 +26,7 @@ const twilio    = require('twilio');
 const Anthropic = require('@anthropic-ai/sdk');
 const { createClient } = require('@supabase/supabase-js');
 const helmet    = require('helmet');
+const rateLimit = require('express-rate-limit');
 const crypto    = require('crypto');
 
 // ─── [FIX 1] Validate all required env vars on startup ───────────────────────
@@ -46,13 +47,18 @@ if (missing.length > 0) {
 const app = express();
 app.set('trust proxy', 1);
 
-// [FIX 2] Security headers — blocks XSS, clickjacking, MIME sniffing, etc.
+// Security headers — blocks XSS, clickjacking, MIME sniffing, etc.
 app.use(helmet());
-app.disable('x-powered-by'); // don't advertise Express
+app.disable('x-powered-by');
 
+// Rate limiting — prevents SMS bombing and brute force
+const webhookLimiter = rateLimit({ windowMs: 60_000, max: 60 });
+const apiLimiter     = rateLimit({ windowMs: 60_000, max: 30 });
+app.use('/webhook', webhookLimiter);
+app.use('/api',     apiLimiter);
 
 app.use(express.urlencoded({ extended: false }));
-app.use(express.json({ limit: '10kb' }));         // cap body size
+app.use(express.json({ limit: '10kb' }));
 
 // ─── Clients ─────────────────────────────────────────────────────────────────
 
@@ -71,8 +77,7 @@ const INDUSTRY_TONES = {
   general:    'You are a friendly local business. Tone: professional and warm.',
 };
 
-// TODO: re-enable on production deployment to Railway
-// ─── [FIX 4] Twilio signature validation middleware ───────────────────────────
+// ─── Twilio signature validation middleware ───────────────────────────────────
 // Verifies every webhook is genuinely from Twilio, not a spoofed attacker.
 // Without this anyone can hit your endpoint and trigger fake SMS sends.
 
@@ -96,7 +101,7 @@ function requireApiAuth(req, res, next) {
   const header = req.headers['authorization'] || '';
   const token  = header.startsWith('Bearer ') ? header.slice(7) : null;
 
-  if (!token) return res.status(401).json({ error: 'Unauthorised' });
+  if (!token || token.length > 512) return res.status(401).json({ error: 'Unauthorised' });
 
   const expected = Buffer.from(process.env.API_SECRET);
   const provided = Buffer.from(token);
@@ -137,7 +142,7 @@ async function generateSMS(business) {
   const name     = safeName(business.name);
 
   if (business.custom_sms_template) {
-    return business.custom_sms_template.replace('{{business_name}}', name);
+    return business.custom_sms_template.slice(0, 320).replace('{{business_name}}', name);
   }
 
   // Caller number intentionally NOT passed to Claude — no need to expose it
@@ -173,8 +178,7 @@ async function updateCallStatus(callId, status) {
 
 // ─── ROUTE 1: Incoming call ───────────────────────────────────────────────────
 
-app.post('/webhook/incoming-call', (req, res) => {
-  console.log('INCOMING CALL BODY:', req.body);
+app.post('/webhook/incoming-call', validateTwilioSignature, (req, res) => {
   const { From: callerNumber, To: toNumber } = req.body;
 
   if (!isValidPhone(callerNumber) || !isValidPhone(toNumber)) {
@@ -192,20 +196,31 @@ app.post('/webhook/incoming-call', (req, res) => {
 
 /// ─── ROUTE 2: Call status (fires SMS) ────────────────────────────────────────
 
-app.post('/webhook/call-status', async (req, res) => {
-  const callSid = req.body.CallSid;
+const CALLSID_REGEX = /^[A-Za-z0-9]{32,34}$/;
 
-  console.log('Call status received:', callSid, 'status:', req.body.CallStatus, 'duration:', req.body.CallDuration);
-
-  console.log('CALL STATUS BODY:', req.body);
-  const { From: callerNumber, To: toNumber } = req.body;
+app.post('/webhook/call-status', validateTwilioSignature, async (req, res) => {
+  const callSid    = req.body.CallSid;
   const callStatus = req.body.CallStatus;
+  const callDuration = parseInt(req.body.CallDuration || '0', 10);
+
+  console.log('Call status received — sid:', callSid, 'status:', callStatus);
+
+  if (!callSid || !CALLSID_REGEX.test(callSid)) {
+    return res.status(400).send('Bad Request');
+  }
+
+  const { From: callerNumber, To: toNumber } = req.body;
 
   if (!isValidPhone(callerNumber) || !isValidPhone(toNumber)) {
     return res.status(400).send('Bad Request');
   }
 
-  const wasMissed = ['no-answer', 'busy', 'failed', 'completed'].includes(callStatus);
+  const wasMissed = (
+    callStatus === 'no-answer' ||
+    callStatus === 'failed' ||
+    (callStatus === 'busy' && callDuration === 0) ||
+    (callStatus === 'completed' && callDuration === 0)
+  );
   if (!wasMissed) return res.type('text/xml').send('<Response/>');
 
   await new Promise(resolve => setTimeout(resolve, Math.random() * 500));
@@ -237,17 +252,16 @@ app.post('/webhook/call-status', async (req, res) => {
     smsBody = `Hi! Sorry we missed your call at ${safeName(business.name)}. What can we help you with? Reply here and we'll get back to you!`;
   }
 
-  console.log('Attempting to send SMS to:', callerNumber, 'from:', toNumber);
   try {
     const result = await twilioClient.messages.create({
       body: smsBody,
       from: toNumber,
       to: callerNumber,
     });
-    console.log('SMS result:', JSON.stringify(result));
+    console.log('SMS sent — sid:', result.sid, 'status:', result.status);
     if (call) await logMessage(call.id, 'outbound', smsBody);
   } catch (err) {
-    console.error('Twilio SMS error full:', JSON.stringify(err));
+    console.error('Twilio SMS error:', err.code, err.message);
   }
 
   res.type('text/xml').send('<Response/>');
@@ -255,7 +269,7 @@ app.post('/webhook/call-status', async (req, res) => {
 
 // ─── ROUTE 3: Inbound SMS reply ───────────────────────────────────────────────
 
-app.post('/webhook/sms-reply', async (req, res) => {
+app.post('/webhook/sms-reply', validateTwilioSignature, async (req, res) => {
   const { From: from, Body: body } = req.body;
 
   if (!isValidPhone(from)) return res.status(400).send('Bad Request');
@@ -318,10 +332,10 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`\n🔒 CallBack AI (hardened) on port ${PORT}`);
-  console.log(`   ✓ Twilio signature validation`);
+  console.log(`\nCallBack AI on port ${PORT}`);
+  console.log(`   ✓ Twilio signature validation (active)`);
   console.log(`   ✓ API Bearer token auth`);
-  console.log(`   ✓ Rate limiting`);
+  console.log(`   ✓ Rate limiting (active)`);
   console.log(`   ✓ Input validation & sanitisation`);
   console.log(`   ✓ Security headers (Helmet)`);
   console.log(`   ✓ Env var validation at startup\n`);
