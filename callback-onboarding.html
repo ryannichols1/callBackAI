@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CallBack AI — Start Your Free Trial</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,700;0,9..144,900;1,9..144,700&family=Epilogue:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://js.stripe.com/v3/"></script>
+<style>
+:root {
+  --bg: #faf8f4;
+  --ink: #16120e;
+  --accent: #ff4d1c;
+  --accent2: #ffb800;
+  --surface: #ffffff;
+  --border: #e8e2d8;
+  --muted: #8a8278;
+  --green: #0d7a4a;
+  --green-soft: #e8f5ee;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Epilogue', sans-serif;
+  min-height: 100vh;
+}
+
+/* Nav */
+nav {
+  padding: 20px 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.nav-logo {
+  font-family: 'Fraunces', serif;
+  font-weight: 900;
+  font-size: 20px;
+  letter-spacing: -0.03em;
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.nav-logo span { color: var(--accent); }
+
+.nav-back {
+  font-size: 13px;
+  color: var(--muted);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.2s;
+}
+
+.nav-back:hover { color: var(--ink); }
+
+/* Layout */
+.page {
+  display: grid;
+  grid-template-columns: 1fr 480px 1fr;
+  min-height: calc(100vh - 61px);
+}
+
+.left-panel {
+  background: var(--ink);
+  padding: 60px 48px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  grid-column: 1;
+}
+
+.form-panel {
+  padding: 48px 40px;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  grid-column: 2;
+}
+
+.right-fill {
+  background: var(--bg);
+  grid-column: 3;
+}
+
+/* Left panel content */
+.left-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 100px;
+  padding: 6px 14px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.7);
+  margin-bottom: 28px;
+}
+
+.left-dot {
+  width: 6px; height: 6px;
+  background: var(--accent2);
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+.left-title {
+  font-family: 'Fraunces', serif;
+  font-weight: 900;
+  font-size: clamp(28px, 3vw, 42px);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  color: #fff;
+  margin-bottom: 20px;
+}
+
+.left-title em {
+  font-style: italic;
+  color: var(--accent2);
+}
+
+.left-sub {
+  font-size: 15px;
+  color: rgba(255,255,255,0.5);
+  line-height: 1.7;
+  margin-bottom: 40px;
+}
+
+.proof-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.proof-icon {
+  width: 32px; height: 32px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.proof-text { font-size: 13.5px; color: rgba(255,255,255,0.6); line-height: 1.5; }
+.proof-text strong { color: #fff; display: block; margin-bottom: 2px; font-size: 14px; }
+
+/* Progress steps */
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 36px;
+}
+
+.prog-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  position: relative;
+}
+
+.prog-step.active { color: var(--ink); }
+.prog-step.done { color: var(--green); }
+
+.prog-num {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--bg);
+  transition: all 0.3s;
+}
+
+.prog-step.active .prog-num {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+
+.prog-step.done .prog-num {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
+}
+
+.prog-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+  margin: 0 8px;
+  min-width: 24px;
+}
+
+/* Form panels */
+.panel {
+  display: none;
+  animation: slideIn 0.3s ease;
+}
+
+.panel.active { display: block; }
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.panel-title {
+  font-family: 'Fraunces', serif;
+  font-weight: 900;
+  font-size: 28px;
+  letter-spacing: -0.03em;
+  margin-bottom: 6px;
+}
+
+.panel-sub {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 28px;
+  line-height: 1.6;
+}
+
+/* Fields */
+.field { margin-bottom: 18px; }
+
+.field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 7px;
+}
+
+.field input,
+.field select {
+  width: 100%;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 13px 16px;
+  color: var(--ink);
+  font-family: 'Epilogue', sans-serif;
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  appearance: none;
+}
+
+.field input:focus,
+.field select:focus {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px rgba(22,18,14,0.06);
+}
+
+.field input::placeholder { color: var(--muted); opacity: 0.6; }
+
+/* Trial notice */
+.trial-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--green-soft);
+  border: 1px solid rgba(13,122,74,0.15);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 22px;
+  font-size: 13.5px;
+  color: var(--green);
+  line-height: 1.5;
+}
+
+/* Stripe wrap */
+.stripe-field {
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.stripe-field.focused {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px rgba(22,18,14,0.06);
+}
+
+.stripe-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+/* Buttons */
+.btn-primary {
+  width: 100%;
+  padding: 15px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 100px;
+  font-family: 'Epilogue', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 4px;
+}
+
+.btn-primary:hover {
+  background: #d93a0e;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(255,77,28,0.3);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-ghost {
+  width: 100%;
+  padding: 13px;
+  background: transparent;
+  color: var(--muted);
+  border: 1.5px solid var(--border);
+  border-radius: 100px;
+  font-family: 'Epilogue', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 10px;
+}
+
+.btn-ghost:hover { border-color: var(--ink); color: var(--ink); }
+
+/* Error */
+.error-msg {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 11px 14px;
+  font-size: 13px;
+  color: #dc2626;
+  margin-top: 12px;
+  display: none;
+  line-height: 1.5;
+}
+
+.error-msg.show { display: block; }
+
+/* Fine print */
+.fine-print {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+  margin-top: 14px;
+  line-height: 1.6;
+}
+
+/* Wizard */
+.wizard-item {
+  display: flex;
+  gap: 16px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.wizard-item:last-child { border-bottom: none; }
+
+.wiz-num {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+  color: var(--muted);
+  transition: all 0.3s;
+}
+
+.wizard-item.active .wiz-num {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+
+.wizard-item.done .wiz-num {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
+}
+
+.wiz-body { flex: 1; }
+
+.wiz-title {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 4px;
+  color: var(--muted);
+}
+
+.wizard-item.active .wiz-title,
+.wizard-item.done .wiz-title { color: var(--ink); }
+
+.wiz-desc {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.code-box {
+  display: flex;
+  align-items: center;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-top: 10px;
+  font-size: 13px;
+  font-family: 'Courier New', monospace;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+}
+
+.copy-btn {
+  margin-left: auto;
+  padding: 4px 12px;
+  background: var(--ink);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'Epilogue', sans-serif;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.copy-btn:hover { background: #333; }
+.copy-btn.copied { background: var(--green); }
+
+.verify-btn {
+  margin-top: 10px;
+  padding: 9px 20px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'Epilogue', sans-serif;
+  transition: all 0.2s;
+}
+
+.verify-btn:hover { background: #d93a0e; }
+.verify-btn.done { background: var(--green); }
+
+/* Success */
+.success-wrap { text-align: center; padding: 20px 0; }
+
+.success-circle {
+  width: 72px; height: 72px;
+  background: var(--green-soft);
+  border: 1.5px solid rgba(13,122,74,0.2);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px;
+  margin: 0 auto 24px;
+}
+
+.what-next {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  text-align: left;
+  margin: 24px 0;
+}
+
+.what-next-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+
+.next-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 0;
+  font-size: 14px;
+  color: var(--ink);
+  line-height: 1.5;
+  border-bottom: 1px solid var(--border);
+}
+
+.next-row:last-child { border-bottom: none; }
+.next-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+@media (max-width: 900px) {
+  .page { grid-template-columns: 1fr; }
+  .left-panel { display: none; }
+  .form-panel { border: none; padding: 32px 24px; }
+  .right-fill { display: none; }
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="nav-logo">📞 CallBack<span>.</span>ai</a>
+  <a href="index.html" class="nav-back">← Back to site</a>
+</nav>
+
+<div class="page">
+
+  <!-- Left panel -->
+  <div class="left-panel">
+    <div class="left-badge">
+      <span class="left-dot"></span>
+      14-day free trial — no commitment
+    </div>
+
+    <div class="left-title">
+      Never lose a<br>customer to a<br><em>missed call</em> again.
+    </div>
+
+    <p class="left-sub">Set up takes 5 minutes. Most businesses recover the cost in their first week.</p>
+
+    <div class="proof-item">
+      <div class="proof-icon">⚡</div>
+      <div class="proof-text">
+        <strong>14-second auto-reply</strong>
+        Every missed call gets an AI text back instantly
+      </div>
+    </div>
+
+    <div class="proof-item">
+      <div class="proof-icon">💰</div>
+      <div class="proof-text">
+        <strong>€2,400 avg. recovered/month</strong>
+        Based on businesses with 20+ missed calls/week
+      </div>
+    </div>
+
+    <div class="proof-item">
+      <div class="proof-icon">🔒</div>
+      <div class="proof-text">
+        <strong>Cancel anytime</strong>
+        No contracts, no setup fees, no risk
+      </div>
+    </div>
+  </div>
+
+  <!-- Form panel -->
+  <div class="form-panel">
+
+    <!-- Progress -->
+    <div class="progress" id="progress">
+      <div class="prog-step active" id="ps-1">
+        <div class="prog-num" id="pn-1">1</div>
+        <span>Details</span>
+      </div>
+      <div class="prog-line"></div>
+      <div class="prog-step" id="ps-2">
+        <div class="prog-num" id="pn-2">2</div>
+        <span>Payment</span>
+      </div>
+      <div class="prog-line"></div>
+      <div class="prog-step" id="ps-3">
+        <div class="prog-num" id="pn-3">3</div>
+        <span>Setup</span>
+      </div>
+      <div class="prog-line"></div>
+      <div class="prog-step" id="ps-4">
+        <div class="prog-num" id="pn-4">4</div>
+        <span>Done</span>
+      </div>
+    </div>
+
+    <!-- Panel 1: Business details -->
+    <div class="panel active" id="panel-1">
+      <div class="panel-title">Your business</div>
+      <p class="panel-sub">Tell us a bit about yourself — takes 30 seconds.</p>
+
+      <div class="field">
+        <label>Business Name</label>
+        <input type="text" id="bizName" placeholder="e.g. Murphy's Plumbing">
+      </div>
+
+      <div class="field">
+        <label>Industry</label>
+        <select id="bizIndustry">
+          <option value="trades">🔧 Trades — Plumber, Electrician, Builder</option>
+          <option value="dental">🦷 Dental / Medical Clinic</option>
+          <option value="salon">💅 Salon / Spa / Beauty</option>
+          <option value="realestate">🏠 Real Estate / Property</option>
+          <option value="restaurant">🍽 Restaurant / Café</option>
+          <option value="general">📱 Other</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Business Phone Number</label>
+        <input type="tel" id="bizPhone" placeholder="+353 87 123 4567">
+      </div>
+
+      <div class="field">
+        <label>Email Address</label>
+        <input type="email" id="bizEmail" placeholder="you@yourbusiness.com">
+      </div>
+
+      <button class="btn-primary" onclick="step1Next()">Continue →</button>
+      <div class="error-msg" id="err-1">Please fill in all fields correctly.</div>
+    </div>
+
+    <!-- Panel 2: Payment -->
+    <div class="panel" id="panel-2">
+      <div class="panel-title">Start your free trial</div>
+      <p class="panel-sub">14 days completely free. €99/month after — cancel anytime before then.</p>
+
+      <div class="trial-notice">
+        ✓ &nbsp;Your card won't be charged for 14 days. Cancel before then and pay nothing.
+      </div>
+
+      <div class="stripe-label">Card details</div>
+      <div class="stripe-field" id="card-wrap">
+        <div id="card-element"></div>
+      </div>
+
+      <div class="field">
+        <label>Name on Card</label>
+        <input type="text" id="cardName" placeholder="Your full name">
+      </div>
+
+      <button class="btn-primary" id="payBtn" onclick="step2Pay()">Start Free Trial →</button>
+      <button class="btn-ghost" onclick="goTo(1)">← Back</button>
+      <div class="error-msg" id="err-2"></div>
+      <p class="fine-print">Payments processed securely by Stripe. We never store your card details.</p>
+    </div>
+
+    <!-- Panel 3: Setup wizard -->
+    <div class="panel" id="panel-3">
+      <div class="panel-title">Activate in 2 minutes</div>
+      <p class="panel-sub">Follow these steps to start recovering missed calls.</p>
+
+      <div class="wizard-item done" id="wiz-1">
+        <div class="wiz-num">✓</div>
+        <div class="wiz-body">
+          <div class="wiz-title">Account created</div>
+          <div class="wiz-desc">Your CallBack AI account is live.</div>
+        </div>
+      </div>
+
+      <div class="wizard-item active" id="wiz-2">
+        <div class="wiz-num">2</div>
+        <div class="wiz-body">
+          <div class="wiz-title">Set up call forwarding</div>
+          <div class="wiz-desc">Dial this code on your business phone to forward unanswered calls to us:</div>
+          <div class="code-box">
+            <span id="fwdCode">**61*+14783303514**30#</span>
+            <button class="copy-btn" onclick="copyFwd()">Copy</button>
+          </div>
+          <p style="font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5">Dial exactly as shown. Works on all Irish networks. Takes 5 seconds.</p>
+        </div>
+      </div>
+
+      <div class="wizard-item" id="wiz-3">
+        <div class="wiz-num">3</div>
+        <div class="wiz-body">
+          <div class="wiz-title">Test it's working</div>
+          <div class="wiz-desc">Call your business number from another phone and don't answer. You should get a text back within 14 seconds.</div>
+          <button class="verify-btn" id="verifyBtn" onclick="verifyDone()">✓ It worked, I got the text!</button>
+        </div>
+      </div>
+
+      <div class="wizard-item" id="wiz-4">
+        <div class="wiz-num">4</div>
+        <div class="wiz-body">
+          <div class="wiz-title">You're live</div>
+          <div class="wiz-desc">Every missed call will now get an instant AI text back.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel 4: Success -->
+    <div class="panel" id="panel-4">
+      <div class="success-wrap">
+        <div class="success-circle">🎉</div>
+        <div class="panel-title">You're all set!</div>
+        <p class="panel-sub" style="margin-top:8px">CallBack AI is now active on <strong id="successName"></strong>. You won't miss another lead.</p>
+
+        <div class="what-next">
+          <div class="what-next-title">What happens now</div>
+          <div class="next-row"><span class="next-icon">📞</span> Customer calls your number</div>
+          <div class="next-row"><span class="next-icon">🔊</span> Hears your voicemail message</div>
+          <div class="next-row"><span class="next-icon">⚡</span> Gets an AI text within 14 seconds</div>
+          <div class="next-row"><span class="next-icon">💬</span> They reply — you see it in your dashboard</div>
+          <div class="next-row"><span class="next-icon">💰</span> You never lose a lead again</div>
+        </div>
+
+        <button class="btn-primary" onclick="window.location.href='callback-dashboard.html'">Go to Dashboard →</button>
+        <p class="fine-print" style="margin-top:14px">Your free trial runs for 14 days. We'll email you before you're charged.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="right-fill"></div>
+</div>
+
+<script>
+let step = 1;
+let biz = {};
+let stripe, card;
+
+// Init Stripe
+window.addEventListener('load', () => {
+  stripe = Stripe('pk_test_51TG5Ln2VuKbu1rXVEYjANN8Rk5ZRy3efNDkGPFmEceXMZG3WXiP4xf55oxd3FhC5ZgEGKvhwwIlLj8ZZEr7oWmHF00w0DiFW8W');
+  const elements = stripe.elements({
+    appearance: {
+      theme: 'stripe',
+      variables: {
+        colorPrimary: '#16120e',
+        colorBackground: '#faf8f4',
+        colorText: '#16120e',
+        colorDanger: '#dc2626',
+        fontFamily: 'Epilogue, sans-serif',
+        borderRadius: '8px',
+        spacingUnit: '4px',
+      },
+      rules: {
+        '.Input': { border: 'none', boxShadow: 'none', backgroundColor: 'transparent' }
+      }
+    }
+  });
+  card = elements.create('card', { hidePostalCode: true });
+  card.mount('#card-element');
+  card.on('focus', () => document.getElementById('card-wrap').classList.add('focused'));
+  card.on('blur', () => document.getElementById('card-wrap').classList.remove('focused'));
+});
+
+function goTo(n) {
+  // Update progress
+  for (let i = 1; i <= 4; i++) {
+    const ps = document.getElementById(`ps-${i}`);
+    const pn = document.getElementById(`pn-${i}`);
+    ps.className = 'prog-step';
+    if (i < n) { ps.classList.add('done'); pn.textContent = '✓'; }
+    else if (i === n) { ps.classList.add('active'); pn.textContent = i; }
+    else { pn.textContent = i; }
+  }
+  document.getElementById(`panel-${step}`).classList.remove('active');
+  step = n;
+  document.getElementById(`panel-${n}`).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+function isValidEmail(e) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+}
+
+function step1Next() {
+  const name    = document.getElementById('bizName').value.trim();
+  const phone   = document.getElementById('bizPhone').value.trim();
+  const email   = document.getElementById('bizEmail').value.trim();
+  const industry = document.getElementById('bizIndustry').value;
+  const err     = document.getElementById('err-1');
+
+  if (!name || !phone || !email || !isValidEmail(email)) {
+    err.classList.add('show');
+    err.textContent = !isValidEmail(email) && email ? 'Please enter a valid email address.' : 'Please fill in all fields.';
+    return;
+  }
+
+  err.classList.remove('show');
+  biz = { name, phone, email, industry };
+  goTo(2);
+}
+
+async function step2Pay() {
+  const btn      = document.getElementById('payBtn');
+  const err      = document.getElementById('err-2');
+  const cardName = document.getElementById('cardName').value.trim();
+
+  if (!cardName) {
+    err.textContent = 'Please enter the name on your card.';
+    err.classList.add('show');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Processing...';
+  err.classList.remove('show');
+
+  try {
+    const { paymentMethod, error } = await stripe.createPaymentMethod({
+      type: 'card',
+      card,
+      billing_details: { name: cardName, email: biz.email },
+    });
+
+    if (error) {
+      err.textContent = error.message;
+      err.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = 'Start Free Trial →';
+      return;
+    }
+
+    const res = await fetch('https://callbackai-production.up.railway.app/api/onboard', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paymentMethodId: paymentMethod.id, business: biz }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      err.textContent = data.error || 'Something went wrong. Please try again.';
+      err.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = 'Start Free Trial →';
+      return;
+    }
+
+    document.getElementById('successName').textContent = biz.name;
+    goTo(3);
+
+  } catch (e) {
+    err.textContent = 'Connection error. Please try again.';
+    err.classList.add('show');
+    btn.disabled = false;
+    btn.textContent = 'Start Free Trial →';
+  }
+}
+
+function copyFwd() {
+  const code = document.getElementById('fwdCode').textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    document.getElementById('wiz-2').classList.remove('active');
+    document.getElementById('wiz-2').classList.add('done');
+    document.getElementById('wiz-2').querySelector('.wiz-num').textContent = '✓';
+    document.getElementById('wiz-3').classList.add('active');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+function verifyDone() {
+  const btn = document.getElementById('verifyBtn');
+  btn.textContent = '✓ Verified!';
+  btn.classList.add('done');
+  document.getElementById('wiz-3').classList.remove('active');
+  document.getElementById('wiz-3').classList.add('done');
+  document.getElementById('wiz-3').querySelector('.wiz-num').textContent = '✓';
+  document.getElementById('wiz-4').classList.add('active');
+  document.getElementById('wiz-4').querySelector('.wiz-num').style.cssText = 'background:var(--accent);border-color:var(--accent);color:#fff';
+  setTimeout(() => goTo(4), 1200);
+}
+</script>
+</body>
+</html>
