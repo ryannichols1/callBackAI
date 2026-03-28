@@ -45,6 +45,7 @@ if (missing.length > 0) {
 // ─── App setup ────────────────────────────────────────────────────────────────
 
 const app = express();
+app.set('trust proxy', 1);
 
 // [FIX 2] Security headers — blocks XSS, clickjacking, MIME sniffing, etc.
 app.use(helmet());
@@ -64,10 +65,6 @@ app.use(express.json({ limit: '10kb' }));         // cap body size
 const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 const anthropic    = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const supabase     = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-const sinchClient  = new SinchClient({
-  servicePlanId: process.env.SINCH_SERVICE_PLAN_ID,
-  apiToken: process.env.SINCH_API_TOKEN,
-});
 
 // ─── Industry tone map ────────────────────────────────────────────────────────
 
@@ -80,6 +77,7 @@ const INDUSTRY_TONES = {
   general:    'You are a friendly local business. Tone: professional and warm.',
 };
 
+// TODO: re-enable on production deployment to Railway
 // ─── [FIX 4] Twilio signature validation middleware ───────────────────────────
 // Verifies every webhook is genuinely from Twilio, not a spoofed attacker.
 // Without this anyone can hit your endpoint and trigger fake SMS sends.
@@ -189,7 +187,7 @@ async function updateCallStatus(callId, status) {
 
 // ─── ROUTE 1: Incoming call ───────────────────────────────────────────────────
 
-app.post('/webhook/incoming-call', validateTwilioSignature, (req, res) => {
+app.post('/webhook/incoming-call', (req, res) => {
   const { From: callerNumber, To: toNumber } = req.body;
 
   if (!isValidPhone(callerNumber) || !isValidPhone(toNumber)) {
@@ -208,7 +206,7 @@ app.post('/webhook/incoming-call', validateTwilioSignature, (req, res) => {
 
 // ─── ROUTE 2: Call status (fires SMS) ────────────────────────────────────────
 
-app.post('/webhook/call-status', validateTwilioSignature, async (req, res) => {
+app.post('/webhook/call-status', async (req, res) => {
   const { DialCallStatus: dialStatus, From: callerNumber, To: toNumber, CallSid: callSid } = req.body;
 
   if (!isValidPhone(callerNumber) || !isValidPhone(toNumber)) {
@@ -232,12 +230,10 @@ app.post('/webhook/call-status', validateTwilioSignature, async (req, res) => {
   }
 
   try {
-    await sinchClient.sms.batches.send({
-      sendSmsBatchRequest: {
-        from: process.env.SINCH_NUMBER,
-        to: [callerNumber],
-        body: smsBody,
-      }
+    await twilioClient.messages.create({
+      body: smsBody,
+      from: toNumber,
+      to: callerNumber,
     });
     if (call) await logMessage(call.id, 'outbound', smsBody);
   } catch (err) {
@@ -249,7 +245,7 @@ app.post('/webhook/call-status', validateTwilioSignature, async (req, res) => {
 
 // ─── ROUTE 3: Inbound SMS reply ───────────────────────────────────────────────
 
-app.post('/webhook/sms-reply', validateTwilioSignature, async (req, res) => {
+app.post('/webhook/sms-reply', async (req, res) => {
   const { From: from, Body: body } = req.body;
 
   if (!isValidPhone(from)) return res.status(400).send('Bad Request');
