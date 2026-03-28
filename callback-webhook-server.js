@@ -210,7 +210,7 @@ const CALLSID_REGEX = /^[A-Za-z0-9]{32,34}$/;
 app.post('/webhook/call-status', validateTwilioSignature, async (req, res) => {
   const callSid    = req.body.CallSid;
   const callStatus = req.body.CallStatus;
-  const callDuration = parseInt(req.body.CallDuration || '0', 10);
+  const dialCallStatus = req.body.DialCallStatus;
 
   console.log('Call status debug:', {
     CallStatus: req.body.CallStatus,
@@ -231,12 +231,10 @@ app.post('/webhook/call-status', validateTwilioSignature, async (req, res) => {
     return res.status(400).send('Bad Request');
   }
 
-  const wasMissed = (
-    callStatus === 'no-answer' ||
-    callStatus === 'failed' ||
-    (callStatus === 'busy' && callDuration === 0) ||
-    (callStatus === 'completed' && callDuration === 0)
-  );
+  const wasMissed =
+    ['no-answer', 'busy', 'failed'].includes(callStatus) ||
+    ['no-answer', 'busy', 'failed'].includes(dialCallStatus) ||
+    (callStatus === 'completed' && dialCallStatus === undefined);
   if (!wasMissed) return res.type('text/xml').send('<Response/>');
 
   await new Promise(resolve => setTimeout(resolve, Math.random() * 500));
