@@ -55,10 +55,12 @@ app.use(helmet());
 app.disable('x-powered-by');
 
 // Rate limiting — prevents SMS bombing and brute force
-const webhookLimiter = rateLimit({ windowMs: 60_000, max: 60 });
-const apiLimiter     = rateLimit({ windowMs: 60_000, max: 30 });
-app.use('/webhook', webhookLimiter);
-app.use('/api',     apiLimiter);
+const webhookLimiter  = rateLimit({ windowMs: 60_000,      max: 60 });
+const apiLimiter      = rateLimit({ windowMs: 60_000,      max: 30 });
+const onboardLimiter  = rateLimit({ windowMs: 60 * 60_000, max: 5  }); // 5 signups/hr/IP
+app.use('/webhook',       webhookLimiter);
+app.use('/api',           apiLimiter);
+app.use('/api/onboard',   onboardLimiter);
 
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json({ limit: '10kb' }));
@@ -131,9 +133,14 @@ function requireApiAuth(req, res, next) {
 const E164_REGEX = /^\+[1-9]\d{7,14}$/;
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+const EMAIL_REGEX = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/;
+const PM_REGEX    = /^pm_[A-Za-z0-9]{6,}/;
+
 const isValidPhone    = n  => typeof n === 'string' && E164_REGEX.test(n.trim());
 const isValidUUID     = id => typeof id === 'string' && UUID_REGEX.test(id);
 const isValidIndustry = i  => Object.keys(INDUSTRY_TONES).includes(i);
+const isValidEmail    = e  => typeof e === 'string' && e.length <= 254 && EMAIL_REGEX.test(e);
+const isValidPmId     = id => typeof id === 'string' && PM_REGEX.test(id);
 const safeName        = s  => String(s || '').slice(0, 100).replace(/[<>"']/g, '');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -343,22 +350,37 @@ app.post('/api/onboard', async (req, res) => {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
+  if (!isValidPmId(paymentMethodId)) {
+    return res.status(400).json({ error: 'Invalid payment method' });
+  }
+
+  if (!isValidEmail(business.email)) {
+    return res.status(400).json({ error: 'Invalid email address' });
+  }
+
+  if (typeof business.name !== 'string' || business.name.length > 200) {
+    return res.status(400).json({ error: 'Invalid business name' });
+  }
+
   const cleanPhone = business.phone.replace(/\s/g, '');
   if (!isValidPhone(cleanPhone)) {
     return res.status(400).json({ error: 'Invalid phone number' });
   }
 
+  let customer = null;
+  let subscription = null;
+
   try {
-    const customer = await stripe.customers.create({
+    customer = await stripe.customers.create({
       email: business.email,
-      name: business.name,
+      name: safeName(business.name),
       phone: cleanPhone,
       payment_method: paymentMethodId,
       invoice_settings: { default_payment_method: paymentMethodId },
       metadata: { industry: business.industry || 'general' },
     });
 
-    const subscription = await stripe.subscriptions.create({
+    subscription = await stripe.subscriptions.create({
       customer: customer.id,
       items: [{ price: process.env.STRIPE_PRICE_ID }],
       trial_period_days: 14,
@@ -384,11 +406,14 @@ app.post('/api/onboard', async (req, res) => {
       .single();
 
     if (dbError) {
+      // Clean up Stripe resources so they don't become orphans
+      await stripe.subscriptions.cancel(subscription.id).catch(() => {});
+      await stripe.customers.del(customer.id).catch(() => {});
       console.error('Supabase insert error:', dbError.message);
       return res.status(500).json({ error: 'Failed to create account' });
     }
 
-    console.log(`New business onboarded: ${business.name} (${newBusiness.id})`);
+    console.log(`New business onboarded: ${safeName(business.name)} (${newBusiness.id})`);
 
     res.json({
       success: true,
@@ -398,6 +423,9 @@ app.post('/api/onboard', async (req, res) => {
     });
 
   } catch (err) {
+    // Clean up any Stripe resources created before the failure
+    if (subscription) await stripe.subscriptions.cancel(subscription.id).catch(() => {});
+    if (customer && !subscription) await stripe.customers.del(customer.id).catch(() => {});
     console.error('Onboarding error:', err.message);
     if (err.type === 'StripeCardError') {
       return res.status(400).json({ error: err.message });
