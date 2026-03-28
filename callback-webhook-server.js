@@ -212,7 +212,14 @@ app.post('/webhook/call-status', validateTwilioSignature, async (req, res) => {
   const callStatus = req.body.CallStatus;
   const callDuration = parseInt(req.body.CallDuration || '0', 10);
 
-  console.log('Call status received — sid:', callSid, 'status:', callStatus);
+  console.log('Call status debug:', {
+    CallStatus: req.body.CallStatus,
+    DialCallStatus: req.body.DialCallStatus,
+    CallDuration: req.body.CallDuration,
+    Duration: req.body.Duration,
+    SequenceNumber: req.body.SequenceNumber
+  });
+  console.log('Call status received — sid:', callSid, 'CallStatus:', callStatus, 'CallDuration:', req.body.CallDuration, 'DialCallStatus:', req.body.DialCallStatus);
 
   if (!callSid || !CALLSID_REGEX.test(callSid)) {
     return res.status(400).send('Bad Request');
