@@ -26,7 +26,6 @@ const twilio    = require('twilio');
 const Anthropic = require('@anthropic-ai/sdk');
 const { createClient } = require('@supabase/supabase-js');
 const helmet    = require('helmet');
-const rateLimit = require('express-rate-limit');
 const crypto    = require('crypto');
 
 // ─── [FIX 1] Validate all required env vars on startup ───────────────────────
@@ -51,11 +50,6 @@ app.set('trust proxy', 1);
 app.use(helmet());
 app.disable('x-powered-by'); // don't advertise Express
 
-// [FIX 3] Rate limiting — prevents SMS bombing and brute force
-const webhookLimiter = rateLimit({ windowMs: 60_000, max: 60 });
-const apiLimiter     = rateLimit({ windowMs: 60_000, max: 30 });
-app.use('/webhook', webhookLimiter);
-app.use('/api',     apiLimiter);
 
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json({ limit: '10kb' }));         // cap body size
@@ -166,14 +160,6 @@ Return ONLY the SMS text. No quotes, no preamble.`;
   return response.content[0].text.trim();
 }
 
-async function logCall(businessId, callerNumber, callSid) {
-  const { data, error } = await supabase
-    .from('calls')
-    .insert({ business_id: businessId, caller_number: callerNumber, call_sid: callSid, status: 'missed' })
-    .select('id').single();
-  if (error) console.error('logCall error:', error.message);
-  return data;
-}
 
 async function logMessage(callId, direction, body) {
   const { error } = await supabase.from('messages').insert({ call_id: callId, direction, body });
@@ -188,6 +174,7 @@ async function updateCallStatus(callId, status) {
 // ─── ROUTE 1: Incoming call ───────────────────────────────────────────────────
 
 app.post('/webhook/incoming-call', (req, res) => {
+  console.log('INCOMING CALL BODY:', req.body);
   const { From: callerNumber, To: toNumber } = req.body;
 
   if (!isValidPhone(callerNumber) || !isValidPhone(toNumber)) {
@@ -196,30 +183,51 @@ app.post('/webhook/incoming-call', (req, res) => {
 
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Dial timeout="20" action="/webhook/call-status" method="POST">
-    <Number>${toNumber}</Number>
-  </Dial>
+  <Say voice="alice">Hi, thanks for calling. We are unable to take your call right now but we will text you back within seconds. Have a great day!</Say>
+  <Hangup/>
 </Response>`;
 
   res.type('text/xml').send(twiml);
 });
 
-// ─── ROUTE 2: Call status (fires SMS) ────────────────────────────────────────
+/// ─── ROUTE 2: Call status (fires SMS) ────────────────────────────────────────
 
 app.post('/webhook/call-status', async (req, res) => {
-  const { DialCallStatus: dialStatus, From: callerNumber, To: toNumber, CallSid: callSid } = req.body;
+  const callSid = req.body.CallSid;
+
+  console.log('Call status received:', callSid, 'status:', req.body.CallStatus, 'duration:', req.body.CallDuration);
+
+  console.log('CALL STATUS BODY:', req.body);
+  const { From: callerNumber, To: toNumber } = req.body;
+  const callStatus = req.body.CallStatus;
 
   if (!isValidPhone(callerNumber) || !isValidPhone(toNumber)) {
     return res.status(400).send('Bad Request');
   }
 
-  const wasMissed = ['no-answer', 'busy', 'failed'].includes(dialStatus);
+  const wasMissed = ['no-answer', 'busy', 'failed', 'completed'].includes(callStatus);
   if (!wasMissed) return res.type('text/xml').send('<Response/>');
+
+  await new Promise(resolve => setTimeout(resolve, Math.random() * 500));
 
   const business = await getBusinessByTwilioNumber(toNumber);
   if (!business) return res.type('text/xml').send('<Response/>');
 
-  const call = await logCall(business.id, callerNumber, callSid);
+  const { data: call } = await supabase
+    .from('calls')
+    .insert({
+      business_id: business.id,
+      caller_number: callerNumber,
+      call_sid: callSid,
+      status: 'missed',
+    })
+    .select()
+    .single();
+
+  if (!call) {
+    console.log('Duplicate CallSid, skipping:', callSid);
+    return res.type('text/xml').send('<Response/>');
+  }
 
   let smsBody;
   try {
@@ -229,15 +237,17 @@ app.post('/webhook/call-status', async (req, res) => {
     smsBody = `Hi! Sorry we missed your call at ${safeName(business.name)}. What can we help you with? Reply here and we'll get back to you!`;
   }
 
+  console.log('Attempting to send SMS to:', callerNumber, 'from:', toNumber);
   try {
-    await twilioClient.messages.create({
+    const result = await twilioClient.messages.create({
       body: smsBody,
       from: toNumber,
       to: callerNumber,
     });
+    console.log('SMS result:', JSON.stringify(result));
     if (call) await logMessage(call.id, 'outbound', smsBody);
   } catch (err) {
-    console.error('Twilio SMS error:', err.message);
+    console.error('Twilio SMS error full:', JSON.stringify(err));
   }
 
   res.type('text/xml').send('<Response/>');
