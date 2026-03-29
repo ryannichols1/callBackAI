@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CallBack AI — Start Your Free Trial</title>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,700;0,9..144,900;1,9..144,700&family=Epilogue:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script async crossorigin="anonymous"
+  data-clerk-publishable-key="pk_test_dW5pZmllZC1jcmF3ZGFkLTYxLmNsZXJrLmFjY291bnRzLmRldiQ"
+  src="https://unified-crawdad-61.clerk.accounts.dev/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
+  type="text/javascript"></script>
 <script src="https://js.stripe.com/v3/"></script>
 <style>
 :root {
@@ -165,8 +169,8 @@ nav {
 .prog-step {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
+  gap: 6px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--muted);
   position: relative;
@@ -184,6 +188,7 @@ nav {
   font-weight: 700;
   background: var(--bg);
   transition: all 0.3s;
+  flex-shrink: 0;
 }
 
 .prog-step.active .prog-num {
@@ -202,8 +207,8 @@ nav {
   flex: 1;
   height: 1px;
   background: var(--border);
-  margin: 0 8px;
-  min-width: 24px;
+  margin: 0 6px;
+  min-width: 12px;
 }
 
 /* Form panels */
@@ -266,6 +271,11 @@ nav {
 .field select:focus {
   border-color: var(--ink);
   box-shadow: 0 0 0 3px rgba(22,18,14,0.06);
+}
+
+.field input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .field input::placeholder { color: var(--muted); opacity: 0.6; }
@@ -377,6 +387,44 @@ nav {
   text-align: center;
   margin-top: 14px;
   line-height: 1.6;
+}
+
+/* Verification box */
+.verify-box {
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-top: 4px;
+}
+
+.verify-box-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+
+.verify-box-sub {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+
+.verify-box-sub strong { color: var(--ink); }
+
+.resend-link {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+  margin-top: 12px;
+}
+
+.resend-link a {
+  color: var(--ink);
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 /* Wizard */
@@ -580,7 +628,7 @@ nav {
   <!-- Form panel -->
   <div class="form-panel">
 
-    <!-- Progress -->
+    <!-- Progress — 5 steps -->
     <div class="progress" id="progress">
       <div class="prog-step active" id="ps-1">
         <div class="prog-num" id="pn-1">1</div>
@@ -589,16 +637,21 @@ nav {
       <div class="prog-line"></div>
       <div class="prog-step" id="ps-2">
         <div class="prog-num" id="pn-2">2</div>
-        <span>Payment</span>
+        <span>Account</span>
       </div>
       <div class="prog-line"></div>
       <div class="prog-step" id="ps-3">
         <div class="prog-num" id="pn-3">3</div>
-        <span>Setup</span>
+        <span>Payment</span>
       </div>
       <div class="prog-line"></div>
       <div class="prog-step" id="ps-4">
         <div class="prog-num" id="pn-4">4</div>
+        <span>Setup</span>
+      </div>
+      <div class="prog-line"></div>
+      <div class="prog-step" id="ps-5">
+        <div class="prog-num" id="pn-5">5</div>
         <span>Done</span>
       </div>
     </div>
@@ -639,8 +692,60 @@ nav {
       <div class="error-msg" id="err-1">Please fill in all fields correctly.</div>
     </div>
 
-    <!-- Panel 2: Payment -->
+    <!-- Panel 2: Create Clerk account -->
     <div class="panel" id="panel-2">
+      <div class="panel-title">Create your account</div>
+      <p class="panel-sub">This is how you'll log into your CallBack AI dashboard.</p>
+
+      <!-- Password fields — hidden once verification is sent -->
+      <div id="signup-fields">
+        <div class="field">
+          <label>Email</label>
+          <input type="email" id="clerkEmailDisplay" disabled>
+        </div>
+
+        <div class="field">
+          <label>Password</label>
+          <input type="password" id="clerkPassword" placeholder="At least 8 characters">
+        </div>
+
+        <div class="field">
+          <label>Confirm Password</label>
+          <input type="password" id="clerkPasswordConfirm" placeholder="Repeat your password">
+        </div>
+
+        <button class="btn-primary" id="clerkSignUpBtn" onclick="step2CreateAccount()">Create Account →</button>
+        <button class="btn-ghost" onclick="goTo(1)">← Back</button>
+      </div>
+
+      <!-- Verification section — shown after account created -->
+      <div id="verify-section" style="display:none">
+        <div class="verify-box">
+          <div class="verify-box-title">Check your email</div>
+          <div class="verify-box-sub">
+            We've sent a 6-digit verification code to <strong id="clerkEmailSent"></strong>.
+            Enter it below to confirm your account.
+          </div>
+
+          <div class="field" style="margin-bottom:12px">
+            <label>Verification Code</label>
+            <input type="text" id="clerkVerifyCode" placeholder="123456"
+              maxlength="6" inputmode="numeric" autocomplete="one-time-code"
+              style="letter-spacing:0.2em;font-size:20px;text-align:center">
+          </div>
+
+          <button class="btn-primary" id="verifyCodeBtn" onclick="step2VerifyCode()">Verify →</button>
+          <div class="resend-link">
+            Didn't get it? <a onclick="resendCode()">Resend code</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="error-msg" id="err-2"></div>
+    </div>
+
+    <!-- Panel 3: Payment -->
+    <div class="panel" id="panel-3">
       <div class="panel-title">Start your free trial</div>
       <p class="panel-sub">14 days completely free. €99/month after — cancel anytime before then.</p>
 
@@ -658,14 +763,14 @@ nav {
         <input type="text" id="cardName" placeholder="Your full name">
       </div>
 
-      <button class="btn-primary" id="payBtn" onclick="step2Pay()">Start Free Trial →</button>
-      <button class="btn-ghost" onclick="goTo(1)">← Back</button>
-      <div class="error-msg" id="err-2"></div>
+      <button class="btn-primary" id="payBtn" onclick="step3Pay()">Start Free Trial →</button>
+      <button class="btn-ghost" onclick="goTo(2)">← Back</button>
+      <div class="error-msg" id="err-3"></div>
       <p class="fine-print">Payments processed securely by Stripe. We never store your card details.</p>
     </div>
 
-    <!-- Panel 3: Setup wizard -->
-    <div class="panel" id="panel-3">
+    <!-- Panel 4: Setup wizard -->
+    <div class="panel" id="panel-4">
       <div class="panel-title">Activate in 2 minutes</div>
       <p class="panel-sub">Follow these steps to start recovering missed calls.</p>
 
@@ -778,8 +883,8 @@ nav {
       </div>
     </div>
 
-    <!-- Panel 4: Success -->
-    <div class="panel" id="panel-4">
+    <!-- Panel 5: Success -->
+    <div class="panel" id="panel-5">
       <div class="success-wrap">
         <div class="success-circle">✓</div>
         <div class="panel-title">You're all set!</div>
@@ -808,8 +913,32 @@ nav {
 let step = 1;
 let biz = {};
 let stripe, card;
+let clerkInstance = null;
+let clerkSignUpObj = null;
 
-// Init Stripe
+// ── Wait for Clerk script to finish loading ──────────────────────────────────
+function waitForClerk() {
+  return new Promise((resolve) => {
+    if (window.Clerk) return resolve(window.Clerk);
+    const interval = setInterval(() => {
+      if (window.Clerk) { clearInterval(interval); resolve(window.Clerk); }
+    }, 50);
+  });
+}
+
+// Pre-load Clerk in the background so it's ready by the time the user
+// reaches step 2. Errors here are non-fatal — we handle them in step2CreateAccount.
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const clerk = await waitForClerk();
+    await clerk.load();
+    clerkInstance = clerk;
+  } catch (e) {
+    console.warn('Clerk pre-load failed:', e);
+  }
+});
+
+// ── Init Stripe ───────────────────────────────────────────────────────────────
 window.addEventListener('load', () => {
   stripe = Stripe('pk_test_51TG5Ln2VuKbu1rXVEYjANN8Rk5ZRy3efNDkGPFmEceXMZG3WXiP4xf55oxd3FhC5ZgEGKvhwwIlLj8ZZEr7oWmHF00w0DiFW8W');
   const elements = stripe.elements({
@@ -835,9 +964,9 @@ window.addEventListener('load', () => {
   card.on('blur', () => document.getElementById('card-wrap').classList.remove('focused'));
 });
 
+// ── Navigation ────────────────────────────────────────────────────────────────
 function goTo(n) {
-  // Update progress
-  for (let i = 1; i <= 4; i++) {
+  for (let i = 1; i <= 5; i++) {
     const ps = document.getElementById(`ps-${i}`);
     const pn = document.getElementById(`pn-${i}`);
     ps.className = 'prog-step';
@@ -855,27 +984,164 @@ function isValidEmail(e) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 }
 
+// ── Step 1: Business details ──────────────────────────────────────────────────
 function step1Next() {
-  const name    = document.getElementById('bizName').value.trim();
-  const phone   = document.getElementById('bizPhone').value.trim();
-  const email   = document.getElementById('bizEmail').value.trim();
+  const name     = document.getElementById('bizName').value.trim();
+  const phone    = document.getElementById('bizPhone').value.trim();
+  const email    = document.getElementById('bizEmail').value.trim();
   const industry = document.getElementById('bizIndustry').value;
-  const err     = document.getElementById('err-1');
+  const err      = document.getElementById('err-1');
 
   if (!name || !phone || !email || !isValidEmail(email)) {
     err.classList.add('show');
-    err.textContent = !isValidEmail(email) && email ? 'Please enter a valid email address.' : 'Please fill in all fields.';
+    err.textContent = !isValidEmail(email) && email
+      ? 'Please enter a valid email address.'
+      : 'Please fill in all fields.';
     return;
   }
 
   err.classList.remove('show');
   biz = { name, phone, email, industry };
+
+  // Pre-fill the email display on step 2
+  document.getElementById('clerkEmailDisplay').value = biz.email;
   goTo(2);
 }
 
-async function step2Pay() {
+// ── Step 2: Create Clerk account ──────────────────────────────────────────────
+async function step2CreateAccount() {
+  const btn     = document.getElementById('clerkSignUpBtn');
+  const err     = document.getElementById('err-2');
+  const pw      = document.getElementById('clerkPassword').value;
+  const pwConf  = document.getElementById('clerkPasswordConfirm').value;
+
+  err.classList.remove('show');
+
+  if (!pw || pw.length < 8) {
+    err.textContent = 'Password must be at least 8 characters.';
+    err.classList.add('show');
+    return;
+  }
+  if (pw !== pwConf) {
+    err.textContent = 'Passwords do not match.';
+    err.classList.add('show');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Creating account...';
+
+  try {
+    // Use pre-loaded instance or load now if pre-load failed
+    const clerk = clerkInstance || await (async () => {
+      const c = await waitForClerk();
+      await c.load();
+      clerkInstance = c;
+      return c;
+    })();
+
+    clerkSignUpObj = clerk.client.signUp;
+    await clerkSignUpObj.create({
+      emailAddress: biz.email,
+      password: pw,
+    });
+
+    await clerkSignUpObj.prepareEmailAddressVerification({ strategy: 'email_code' });
+
+    // Swap to verification UI
+    document.getElementById('signup-fields').style.display = 'none';
+    document.getElementById('verify-section').style.display = 'block';
+    document.getElementById('clerkEmailSent').textContent = biz.email;
+
+  } catch (e) {
+    let msg = 'Something went wrong. Please try again.';
+    if (e.errors?.length) {
+      const code = e.errors[0].code;
+      if (code === 'form_identifier_exists') {
+        msg = 'This email is already registered. Please <a href="callback-dashboard.html">sign in to your dashboard</a> instead.';
+      } else if (code === 'form_password_pwned') {
+        msg = 'That password has appeared in a data breach. Please choose a different password.';
+      } else {
+        msg = e.errors[0].longMessage || e.errors[0].message || msg;
+      }
+    }
+    err.innerHTML = msg;
+    err.classList.add('show');
+    btn.disabled = false;
+    btn.textContent = 'Create Account →';
+  }
+}
+
+async function step2VerifyCode() {
+  const btn  = document.getElementById('verifyCodeBtn');
+  const err  = document.getElementById('err-2');
+  const code = document.getElementById('clerkVerifyCode').value.trim();
+
+  err.classList.remove('show');
+
+  if (!code || code.length < 6) {
+    err.textContent = 'Please enter the 6-digit code from your email.';
+    err.classList.add('show');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Verifying...';
+
+  try {
+    const result = await clerkSignUpObj.attemptEmailAddressVerification({ code });
+
+    if (result.status === 'complete') {
+      goTo(3); // proceed to payment
+    } else {
+      err.textContent = 'Verification incomplete. Please try again.';
+      err.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = 'Verify →';
+    }
+  } catch (e) {
+    let msg = 'Invalid code. Please check and try again.';
+    if (e.errors?.length) {
+      const code_err = e.errors[0].code;
+      if (code_err === 'form_code_incorrect') {
+        msg = 'That code is incorrect. Please check your email and try again.';
+      } else if (code_err === 'verification_expired') {
+        msg = 'The code has expired. Click "Resend code" to get a new one.';
+      } else {
+        msg = e.errors[0].longMessage || e.errors[0].message || msg;
+      }
+    }
+    err.textContent = msg;
+    err.classList.add('show');
+    btn.disabled = false;
+    btn.textContent = 'Verify →';
+  }
+}
+
+async function resendCode() {
+  const err = document.getElementById('err-2');
+  err.classList.remove('show');
+  try {
+    await clerkSignUpObj.prepareEmailAddressVerification({ strategy: 'email_code' });
+    err.textContent = 'A new code has been sent to your email.';
+    err.style.background = '#e8f5ee';
+    err.style.borderColor = 'rgba(13,122,74,0.2)';
+    err.style.color = 'var(--green)';
+    err.classList.add('show');
+    setTimeout(() => {
+      err.classList.remove('show');
+      err.style.cssText = '';
+    }, 4000);
+  } catch (e) {
+    err.textContent = 'Could not resend code. Please try again.';
+    err.classList.add('show');
+  }
+}
+
+// ── Step 3: Payment ───────────────────────────────────────────────────────────
+async function step3Pay() {
   const btn      = document.getElementById('payBtn');
-  const err      = document.getElementById('err-2');
+  const err      = document.getElementById('err-3');
   const cardName = document.getElementById('cardName').value.trim();
 
   if (!cardName) {
@@ -920,7 +1186,7 @@ async function step2Pay() {
     }
 
     document.getElementById('successName').textContent = biz.name;
-    goTo(3);
+    goTo(4);
 
   } catch (e) {
     err.textContent = 'Connection error. Please try again.';
@@ -930,20 +1196,7 @@ async function step2Pay() {
   }
 }
 
-function copyFwd() {
-  const code = document.getElementById('fwdCode').textContent;
-  navigator.clipboard.writeText(code).then(() => {
-    const btn = document.querySelector('.copy-btn');
-    btn.textContent = 'Copied!';
-    btn.classList.add('copied');
-    document.getElementById('wiz-2').classList.remove('active');
-    document.getElementById('wiz-2').classList.add('done');
-    document.getElementById('wiz-2').querySelector('.wiz-num').textContent = '✓';
-    document.getElementById('wiz-3').classList.add('active');
-    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
-  });
-}
-
+// ── Step 4: Setup wizard ──────────────────────────────────────────────────────
 async function testCall() {
   const btn = document.getElementById('verifyBtn');
   btn.textContent = 'Calling your number...';
@@ -983,8 +1236,9 @@ function verifyDone() {
   document.getElementById('wiz-3').classList.add('done');
   document.getElementById('wiz-3').querySelector('.wiz-num').textContent = '✓';
   document.getElementById('wiz-4').classList.add('active');
-  document.getElementById('wiz-4').querySelector('.wiz-num').style.cssText = 'background:var(--accent);border-color:var(--accent);color:#fff';
-  setTimeout(() => goTo(4), 1200);
+  document.getElementById('wiz-4').querySelector('.wiz-num').style.cssText =
+    'background:var(--accent);border-color:var(--accent);color:#fff';
+  setTimeout(() => goTo(5), 1200);
 }
 </script>
 </body>
