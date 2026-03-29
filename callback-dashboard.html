@@ -606,10 +606,27 @@ async function markConverted(callId, btn, bizId, token) {
 }
 
 // ── Boot ──
-window.addEventListener('load', async () => {
-  await window.__clerk_loaded;
-  const clerk = window.Clerk;
-  await clerk.load();
+// Wait for window.Clerk to be defined (the script tag is async)
+function waitForClerk() {
+  return new Promise((resolve) => {
+    if (window.Clerk) return resolve(window.Clerk);
+    const interval = setInterval(() => {
+      if (window.Clerk) { clearInterval(interval); resolve(window.Clerk); }
+    }, 50);
+  });
+}
+
+async function boot() {
+  let clerk;
+  try {
+    clerk = await waitForClerk();
+    await clerk.load();
+  } catch (err) {
+    console.error('Clerk failed to load:', err);
+    document.getElementById('loading-screen').innerHTML =
+      '<div style="color:#c43d1a;font-family:sans-serif;padding:32px">Failed to load authentication. Please refresh.</div>';
+    return;
+  }
 
   if (clerk.user) {
     show('dashboard');
@@ -624,7 +641,9 @@ window.addEventListener('load', async () => {
       }
     });
   }
-});
+}
+
+document.addEventListener('DOMContentLoaded', boot);
 </script>
 </body>
 </html>
