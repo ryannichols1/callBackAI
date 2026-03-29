@@ -348,6 +348,29 @@ app.get('/api/businesses/:businessId/calls', requireApiAuth, async (req, res) =>
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
+// ─── ROUTE: Test call ────────────────────────────────────────────────────────
+
+app.post('/api/test-call', async (req, res) => {
+  const { phone } = req.body;
+
+  if (!isValidPhone(phone.replace(/\s/g, ''))) {
+    return res.status(400).json({ error: 'Invalid phone' });
+  }
+
+  try {
+    await twilioClient.calls.create({
+      url: 'https://callbackai-production.up.railway.app/webhook/incoming-call',
+      to: phone.replace(/\s/g, ''),
+      from: process.env.TWILIO_PHONE_NUMBER,
+    });
+
+    res.json({ success: true });
+  } catch(err) {
+    console.error('Test call error:', err.message);
+    res.status(500).json({ error: 'Failed to place call' });
+  }
+});
+
 // ─── ROUTE: Onboard new business ─────────────────────────────────────────────
 
 app.post('/api/onboard', async (req, res) => {

@@ -698,8 +698,15 @@ nav {
         <div class="wiz-num">3</div>
         <div class="wiz-body">
           <div class="wiz-title">Test it's working</div>
-          <div class="wiz-desc">Call your business number from another phone and don't answer. You should get a text back within 14 seconds.</div>
-          <button class="verify-btn" id="verifyBtn" onclick="verifyDone()">✓ It worked, I got the text!</button>
+          <div class="wiz-desc">
+            We'll test it for you automatically. Click the button
+            below and we'll call your number right now — if
+            forwarding is set up correctly you'll get a text
+            back within 14 seconds.
+          </div>
+          <button class="verify-btn" id="verifyBtn" onclick="testCall()">
+            Call my number now →
+          </button>
         </div>
       </div>
 
@@ -876,6 +883,37 @@ function copyFwd() {
     document.getElementById('wiz-3').classList.add('active');
     setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
   });
+}
+
+async function testCall() {
+  const btn = document.getElementById('verifyBtn');
+  btn.textContent = 'Calling your number...';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(
+      'https://callbackai-production.up.railway.app/api/test-call',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: biz.phone })
+      }
+    );
+
+    const data = await res.json();
+
+    if (data.success) {
+      btn.textContent = '✓ Call sent — check your phone!';
+      btn.classList.add('done');
+      setTimeout(() => verifyDone(), 5000);
+    } else {
+      btn.textContent = 'Try again';
+      btn.disabled = false;
+    }
+  } catch(e) {
+    btn.textContent = 'Try again';
+    btn.disabled = false;
+  }
 }
 
 function verifyDone() {
