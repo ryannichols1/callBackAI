@@ -56,7 +56,7 @@ app.use(helmet());
 app.disable('x-powered-by');
 
 app.use(cors({
-  origin: ['https://your-netlify-url.netlify.app', 'http://localhost:3000'],
+  origin: ['https://callbackai.netlify.app', 'http://localhost:3000'],
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
