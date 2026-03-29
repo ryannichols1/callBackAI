@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",
+    "@clerk/backend": "^3.2.3",
     "@supabase/supabase-js": "^2.39.0",
     "cors": "^2.8.6",
     "dotenv": "^16.4.0",

@@ -31,6 +31,7 @@ const cors      = require('cors');
 const crypto    = require('crypto');
 const Stripe    = require('stripe');
 const stripe    = Stripe(process.env.STRIPE_SECRET_KEY);
+const { verifyToken } = require('@clerk/backend');
 
 // ─── [FIX 1] Validate all required env vars on startup ───────────────────────
 // Fail immediately if any secret is missing — never run half-configured.
@@ -38,7 +39,7 @@ const stripe    = Stripe(process.env.STRIPE_SECRET_KEY);
 const REQUIRED_ENV = [
   'TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_PHONE_NUMBER',
   'ANTHROPIC_API_KEY', 'SUPABASE_URL', 'SUPABASE_SERVICE_KEY', 'API_SECRET',
-  'STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID',
+  'STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID', 'CLERK_SECRET_KEY',
 ];
 const missing = REQUIRED_ENV.filter(k => !process.env[k]);
 if (missing.length > 0) {
@@ -137,6 +138,24 @@ function requireApiAuth(req, res, next) {
     return res.status(403).json({ error: 'Forbidden' });
   }
   next();
+}
+
+// ─── Clerk JWT auth middleware ────────────────────────────────────────────────
+// Verifies Clerk session tokens on dashboard API routes.
+
+async function requireAuth(req, res, next) {
+  const header = req.headers['authorization'] || '';
+  const token  = header.startsWith('Bearer ') ? header.slice(7) : null;
+
+  if (!token) return res.status(401).json({ error: 'Unauthorised' });
+
+  try {
+    await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY });
+    next();
+  } catch (err) {
+    console.warn(`Clerk token verification failed from ${req.ip}:`, err.message);
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
 }
 
 // ─── [FIX 6] Input validation ────────────────────────────────────────────────
@@ -335,7 +354,7 @@ app.post('/api/calls/:callId/convert', requireApiAuth, async (req, res) => {
 
 // ─── ROUTE 5: Get calls for business (auth required) ─────────────────────────
 
-app.get('/api/businesses/:businessId/calls', requireApiAuth, async (req, res) => {
+app.get('/api/businesses/:businessId/calls', requireAuth, async (req, res) => {
   if (!isValidUUID(req.params.businessId)) return res.status(400).json({ error: 'Invalid ID' });
 
   const { data, error } = await supabase
@@ -471,7 +490,7 @@ app.post('/api/onboard', async (req, res) => {
 
 // ─── ROUTE: Get business by email (Clerk dashboard auth) ─────────────────────
 
-app.get('/api/my-business', async (req, res) => {
+app.get('/api/my-business', requireAuth, async (req, res) => {
   const email = req.headers['x-user-email'];
 
   if (!email || !email.includes('@')) {

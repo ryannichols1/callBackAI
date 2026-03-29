@@ -493,11 +493,23 @@ async function loadDashboard(user) {
   const email = user.primaryEmailAddress?.emailAddress;
   if (!email) { showError('No email found on your account.'); return; }
 
+  // Get Clerk session token first — needed for all API calls
+  let token;
+  try { token = await window.Clerk.session.getToken(); } catch(e) { token = null; }
+
+  if (!token) {
+    showError('Session expired. Please sign in again.');
+    return;
+  }
+
   // Fetch business
   let biz;
   try {
     const r = await fetch(`${API}/api/my-business`, {
-      headers: { 'X-User-Email': email }
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'X-User-Email': email,
+      }
     });
     if (r.status === 404) {
       showError('No business found for this account. <a href="callback-onboarding.html">Sign up here</a>.');
@@ -512,10 +524,6 @@ async function loadDashboard(user) {
 
   document.getElementById('sidebarBizName').textContent = biz.name;
   document.getElementById('sidebarBizIndustry').textContent = biz.industry || '';
-
-  // Fetch calls
-  let token;
-  try { token = await window.Clerk.session.getToken(); } catch(e) { token = null; }
 
   let calls = [];
   try {
