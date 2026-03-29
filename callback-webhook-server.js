@@ -27,6 +27,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const { createClient } = require('@supabase/supabase-js');
 const helmet    = require('helmet');
 const rateLimit = require('express-rate-limit');
+const cors      = require('cors');
 const crypto    = require('crypto');
 const Stripe    = require('stripe');
 const stripe    = Stripe(process.env.STRIPE_SECRET_KEY);
@@ -53,6 +54,12 @@ app.set('trust proxy', 1);
 // Security headers — blocks XSS, clickjacking, MIME sniffing, etc.
 app.use(helmet());
 app.disable('x-powered-by');
+
+app.use(cors({
+  origin: ['https://your-netlify-url.netlify.app', 'http://localhost:3000'],
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 
 // Rate limiting — prevents SMS bombing and brute force
 const webhookLimiter  = rateLimit({ windowMs: 60_000,      max: 60 });
