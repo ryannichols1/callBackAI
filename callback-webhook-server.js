@@ -121,13 +121,16 @@ async function requireAuth(req, res, next) {
   const header = req.headers['authorization'] || '';
   const token  = header.startsWith('Bearer ') ? header.slice(7) : null;
 
+  console.log(`[requireAuth] ${req.method} ${req.path} | token: ${token ? token.slice(0, 24) + '...' : 'MISSING'} | email: ${req.headers['x-user-email'] || 'none'} | origin: ${req.headers['origin'] || 'none'}`);
+
   if (!token) return res.status(401).json({ error: 'Unauthorised' });
 
   try {
     await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY });
+    console.log(`[requireAuth] OK — ${req.method} ${req.path}`);
     next();
   } catch (err) {
-    console.warn(`Clerk token verification failed from ${req.ip}:`, err.message);
+    console.warn(`[requireAuth] FAILED — ${req.method} ${req.path} | error: ${err.message}`);
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
 }
@@ -466,8 +469,10 @@ app.post('/api/onboard', async (req, res) => {
 
 app.get('/api/my-business', requireAuth, async (req, res) => {
   const email = req.headers['x-user-email'];
+  console.log(`[/api/my-business] looking up email: "${email}"`);
 
   if (!email || !email.includes('@')) {
+    console.warn(`[/api/my-business] missing or invalid email header`);
     return res.status(400).json({ error: 'Missing email' });
   }
 

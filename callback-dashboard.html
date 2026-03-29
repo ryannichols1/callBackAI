@@ -789,7 +789,14 @@ async function boot() {
   } else {
     dbg('Step 2: No active session — mounting sign-in widget', 'ok');
     show('auth-screen');
-    clerk.mountSignIn(document.getElementById('clerk-sign-in'));
+    // afterSignInUrl: redirect back to THIS page after login so boot() runs
+    // again with clerk.user set. Without this Clerk defaults to "/" and the
+    // user ends up on the landing page instead of the dashboard.
+    clerk.mountSignIn(document.getElementById('clerk-sign-in'), {
+      afterSignInUrl: window.location.href,
+      afterSignUpUrl: window.location.href,
+    });
+    // Listener handles the in-page case (if Clerk ever settles without a redirect)
     clerk.addListener(({ user }) => {
       if (user) {
         const email = user.primaryEmailAddress?.emailAddress || 'unknown';
