@@ -748,7 +748,7 @@ body {
 <aside class="sidebar">
   <div class="sidebar-logo">
     <div class="logo-mark">
-      <div class="logo-icon">📞</div>
+      <div class="logo-icon"></div>
       <span class="logo-name">CallBack AI</span>
     </div>
     <div class="logo-sub">Missed Call Recovery</div>
@@ -763,27 +763,27 @@ body {
   <nav class="nav">
     <div class="nav-section">Main</div>
     <div class="nav-item active">
-      <span class="nav-icon">📋</span> Missed Calls
+      Missed Calls
       <span class="nav-badge">7</span>
     </div>
     <div class="nav-item">
-      <span class="nav-icon">💬</span> Conversations
+      Conversations
     </div>
     <div class="nav-item">
-      <span class="nav-icon">📅</span> Appointments
+      Appointments
     </div>
     <div class="nav-item">
-      <span class="nav-icon">📈</span> Analytics
+      Analytics
     </div>
     <div class="nav-section">Settings</div>
     <div class="nav-item">
-      <span class="nav-icon">⚙️</span> Auto-Reply Setup
+      Auto-Reply Setup
     </div>
     <div class="nav-item">
-      <span class="nav-icon">🏢</span> Business Profile
+      Business Profile
     </div>
     <div class="nav-item">
-      <span class="nav-icon">💳</span> Billing
+      Billing
     </div>
   </nav>
 
@@ -815,25 +815,25 @@ body {
   <div class="stats-row">
     <div class="stat-card">
       <div class="stat-accent red"></div>
-      <div class="stat-label">📵 Missed This Week</div>
+      <div class="stat-label">Missed This Week</div>
       <div class="stat-value">24</div>
       <div class="stat-delta up">↑ 3 from last week</div>
     </div>
     <div class="stat-card">
       <div class="stat-accent green-bar"></div>
-      <div class="stat-label">✅ Recovered</div>
+      <div class="stat-label">Recovered</div>
       <div class="stat-value">18</div>
       <div class="stat-delta up">75% recovery rate</div>
     </div>
     <div class="stat-card">
       <div class="stat-accent yellow-bar"></div>
-      <div class="stat-label">💰 Est. Revenue Saved</div>
+      <div class="stat-label">Est. Revenue Saved</div>
       <div class="stat-value">€2.1k</div>
       <div class="stat-delta up">↑ €400 vs last week</div>
     </div>
     <div class="stat-card">
       <div class="stat-accent blue-bar"></div>
-      <div class="stat-label">⚡ Avg. Reply Time</div>
+      <div class="stat-label">Avg. Reply Time</div>
       <div class="stat-value">14s</div>
       <div class="stat-delta neutral">Auto-SMS fired</div>
     </div>
@@ -882,9 +882,9 @@ body {
         </div>
         <div class="detail-body">
           <div class="detail-section">
-            <div class="detail-section-label">Auto-SMS Sent <span class="ai-tag">🤖 AI</span></div>
+            <div class="detail-section-label">Auto-SMS Sent <span class="ai-tag">AI</span></div>
             <div class="sms-bubble sent" id="smsSent">
-              Hi Sarah! Sorry we missed your call at Murphy's Plumbing. We'd love to help — what did you need us for? Reply here and we'll get back to you straight away! 🔧
+              Hi Sarah! Sorry we missed your call at Murphy's Plumbing. We'd love to help — what did you need us for? Reply here and we'll get back to you straight away!
             </div>
             <div class="sms-meta">
               <span>Sent 14s after missed call</span>
@@ -914,10 +914,10 @@ body {
           <div class="detail-section">
             <div class="detail-section-label">Quick Tags</div>
             <div class="tag-row">
-              <div class="tag">🔧 Repair</div>
-              <div class="tag">💧 Emergency</div>
-              <div class="tag">📅 Book In</div>
-              <div class="tag">💰 Quote</div>
+              <div class="tag">Repair</div>
+              <div class="tag">Emergency</div>
+              <div class="tag">Book In</div>
+              <div class="tag">Quote</div>
             </div>
           </div>
         </div>
@@ -926,24 +926,23 @@ body {
       <!-- AI composer -->
       <div class="ai-composer">
         <div class="ai-composer-header">
-          <span>🤖</span>
           <span class="ai-composer-title">AI Reply Composer</span>
         </div>
         <div class="ai-composer-body">
           <div class="detail-section-label" style="margin-bottom:8px">Industry tone</div>
           <div class="industry-chips">
-            <button class="chip active" data-ind="trades" onclick="selectIndustry(this)">🔧 Trades</button>
-            <button class="chip" data-ind="dental" onclick="selectIndustry(this)">🦷 Dental</button>
-            <button class="chip" data-ind="salon" onclick="selectIndustry(this)">💅 Salon</button>
-            <button class="chip" data-ind="realestate" onclick="selectIndustry(this)">🏠 Property</button>
-            <button class="chip" data-ind="restaurant" onclick="selectIndustry(this)">🍽 Restaurant</button>
+            <button class="chip active" data-ind="trades" onclick="selectIndustry(this)">Trades</button>
+            <button class="chip" data-ind="dental" onclick="selectIndustry(this)">Dental</button>
+            <button class="chip" data-ind="salon" onclick="selectIndustry(this)">Salon</button>
+            <button class="chip" data-ind="realestate" onclick="selectIndustry(this)">Property</button>
+            <button class="chip" data-ind="restaurant" onclick="selectIndustry(this)">Restaurant</button>
           </div>
 
           <div class="detail-section-label" style="margin-bottom:8px">Context (optional)</div>
           <textarea class="reply-textarea" id="aiContext" style="min-height:52px" placeholder="e.g. Customer needs urgent pipe repair, wants quote today"></textarea>
 
           <button class="generate-sms-btn" id="genBtn" onclick="generateAIReply()">
-            ✨ Generate Smart Reply
+            Generate Smart Reply
           </button>
 
           <div class="generated-sms" id="generatedSms"></div>
@@ -1031,7 +1030,7 @@ function markConverted() {
   const call = calls.find(c => c.id === selectedCall.id);
   call.status = 'converted';
   renderCalls();
-  showToast('Marked as converted 💰');
+  showToast('Marked as converted');
 }
 
 function showToast(msg) {
@@ -1096,7 +1095,7 @@ Write ONLY the SMS text. No quotes, no explanation. Keep it warm, human, and act
   }
 
   btn.disabled = false;
-  btn.innerHTML = '✨ Generate Smart Reply';
+  btn.innerHTML = 'Generate Smart Reply';
 }
 
 function useGeneratedReply(text) {

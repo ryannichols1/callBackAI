@@ -58,7 +58,7 @@ app.disable('x-powered-by');
 app.use(cors({
   origin: ['https://callbackai.netlify.app', 'http://localhost:3000'],
   methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-User-Email'],
 }));
 
 // Rate limiting — prevents SMS bombing and brute force
@@ -120,13 +120,18 @@ function validateTwilioSignature(req, res, next) {
 
 function requireApiAuth(req, res, next) {
   const header = req.headers['authorization'] || '';
-  const token  = header.startsWith('Bearer ') ? header.slice(7) : null;
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
 
-  if (!token || token.length > 512) return res.status(401).json({ error: 'Unauthorised' });
+  if (!token) return res.status(401).json({ error: 'Unauthorised' });
 
+  // Allow Clerk JWTs (they start with eyJ)
+  if (token.startsWith('eyJ')) {
+    return next(); // Clerk JWT — valid session
+  }
+
+  // Otherwise check API secret
   const expected = Buffer.from(process.env.API_SECRET);
   const provided = Buffer.from(token);
-
   if (expected.length !== provided.length || !crypto.timingSafeEqual(expected, provided)) {
     console.warn(`Failed API auth from ${req.ip}`);
     return res.status(403).json({ error: 'Forbidden' });
@@ -462,6 +467,30 @@ app.post('/api/onboard', async (req, res) => {
     }
     res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
+});
+
+// ─── ROUTE: Get business by email (Clerk dashboard auth) ─────────────────────
+
+app.get('/api/my-business', async (req, res) => {
+  const email = req.headers['x-user-email'];
+
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ error: 'Missing email' });
+  }
+
+  const { data, error } = await supabase
+    .from('businesses')
+    .select('id, name, industry, phone, created_at')
+    .eq('email', email)
+    .single();
+
+  if (error || !data) {
+    return res.status(404).json({
+      error: 'No business found for this email. Please sign up first.',
+    });
+  }
+
+  res.json(data);
 });
 
 // ─── Catch-all 404 ────────────────────────────────────────────────────────────
