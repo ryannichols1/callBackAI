@@ -371,13 +371,70 @@ body {
   font-size: 14px;
   margin-bottom: 24px;
 }
+
+/* ── DEBUG: fatal error overlay (fixed top bar) ── */
+#fatal-error {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  background: #c0392b;
+  color: #fff;
+  padding: 18px 24px;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  z-index: 9999;
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.5;
+}
+
+/* ── DEBUG: step log shown on loading screen ── */
+#debug-panel {
+  margin-top: 20px;
+  background: #111;
+  border-radius: 8px;
+  padding: 14px 16px;
+  width: 500px;
+  max-width: 92vw;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: #ccc;
+  max-height: 260px;
+  overflow-y: auto;
+  text-align: left;
+}
+#debug-panel .dbg-header {
+  font-size: 10px;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+}
+.dbg-line { margin-bottom: 3px; line-height: 1.4; }
+.dbg-line.ok  { color: #5ddb8a; }
+.dbg-line.err { color: #ff6b6b; font-weight: 700; }
 </style>
 </head>
 <body>
 
+<!-- Fatal error overlay (DEBUG) -->
+<div id="fatal-error"></div>
+
 <!-- Loading -->
 <div id="loading-screen">
-  <div class="spinner"></div>
+  <div style="display:flex;flex-direction:column;align-items:center;padding:32px">
+    <div class="spinner" id="boot-spinner"></div>
+    <div id="debug-panel">
+      <div class="dbg-header">
+        <span>Debug Log</span>
+        <span id="dbg-time">0.0s</span>
+      </div>
+      <div id="debug-lines"></div>
+    </div>
+  </div>
 </div>
 
 <!-- Auth -->
@@ -467,21 +524,57 @@ body {
 
 <script>
 const API = 'https://callbackai-production.up.railway.app';
+const _bootStart = Date.now();
+
+// ── DEBUG helpers ─────────────────────────────────────────────────────────────
+
+function dbg(msg, type = '') {
+  const elapsed = ((Date.now() - _bootStart) / 1000).toFixed(1);
+  const timeEl = document.getElementById('dbg-time');
+  if (timeEl) timeEl.textContent = elapsed + 's';
+  const lines = document.getElementById('debug-lines');
+  if (lines) {
+    const div = document.createElement('div');
+    div.className = 'dbg-line' + (type ? ' ' + type : '');
+    div.textContent = '[' + elapsed + 's] ' + msg;
+    lines.appendChild(div);
+    lines.scrollTop = lines.scrollHeight;
+  }
+  console.log('[dbg ' + elapsed + 's] ' + msg);
+}
+
+function fatalError(msg) {
+  console.error('FATAL:', msg);
+  const spinner = document.getElementById('boot-spinner');
+  if (spinner) spinner.style.display = 'none';
+  dbg('FATAL: ' + msg, 'err');
+  const overlay = document.getElementById('fatal-error');
+  overlay.textContent = 'Something went wrong\n\n' + msg + '\n\nCheck the debug log above for context.';
+  overlay.style.display = 'block';
+}
+
+// Wraps any promise with a hard timeout so no step can block forever.
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Timed out after ' + (ms/1000) + 's waiting for: ' + label)), ms)
+    )
+  ]);
+}
+
+// ── Screen switching ──────────────────────────────────────────────────────────
 
 function show(id) {
   ['loading-screen', 'auth-screen', 'dashboard'].forEach(s => {
     const el = document.getElementById(s);
-    if (s === 'auth-screen') {
-      el.style.display = (s === id) ? 'flex' : 'none';
-    } else {
-      el.style.display = (s === id) ? 'block' : 'none';
-    }
+    el.style.display = (s === id) ? (s === 'auth-screen' ? 'flex' : 'block') : 'none';
   });
 }
 
 function showError(msg) {
   document.getElementById('error-area').innerHTML =
-    `<div class="error-banner">${msg}</div>`;
+    '<div class="error-banner">' + msg + '</div>';
 }
 
 async function signOut() {
@@ -489,71 +582,103 @@ async function signOut() {
   show('auth-screen');
 }
 
+// ── Dashboard loader ──────────────────────────────────────────────────────────
+
 async function loadDashboard(user) {
   const email = user.primaryEmailAddress?.emailAddress;
-  if (!email) { showError('No email found on your account.'); return; }
+  dbg('Step 3: User object received — email: ' + (email || 'NONE'), 'ok');
 
-  // Get Clerk session token first — needed for all API calls
-  let token;
-  try { token = await window.Clerk.session.getToken(); } catch(e) { token = null; }
-
-  if (!token) {
-    showError('Session expired. Please sign in again.');
-    document.getElementById('callList').innerHTML = '<div class="empty-state">Unable to load — please sign in again.</div>';
+  if (!email) {
+    showError('No email address found on your Clerk account.');
+    dbg('ERROR: no email on user object — cannot look up business', 'err');
+    document.getElementById('callList').innerHTML = '<div class="empty-state">No email found.</div>';
     return;
   }
 
-  // Fetch business
+  // ── Step 4: Get Clerk JWT ─────────────────────────────────────────────────
+  dbg('Step 4: Calling clerk.session.getToken()...');
+  let token;
+  try {
+    if (!window.Clerk?.session) throw new Error('clerk.session is null — session not established');
+    token = await withTimeout(window.Clerk.session.getToken(), 5000, 'clerk.session.getToken()');
+    dbg('Step 4: Token received — ' + token.slice(0, 28) + '...', 'ok');
+  } catch(e) {
+    showError('Could not get session token: ' + e.message);
+    dbg('ERROR: getToken() failed — ' + e.message, 'err');
+    document.getElementById('callList').innerHTML = '<div class="empty-state">Session error — please sign in again.</div>';
+    return;
+  }
+
+  // ── Step 5: Fetch business ────────────────────────────────────────────────
+  dbg('Step 5: GET /api/my-business (email: ' + email + ')');
   let biz;
   try {
-    const r = await fetch(`${API}/api/my-business`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'X-User-Email': email,
-      }
-    });
+    const r = await withTimeout(
+      fetch(API + '/api/my-business', {
+        headers: { 'Authorization': 'Bearer ' + token, 'X-User-Email': email }
+      }),
+      5000, 'GET /api/my-business'
+    );
+    dbg('Step 5: Response — HTTP ' + r.status);
     if (r.status === 404) {
       showError('No business found for this account. <a href="callback-onboarding.html">Sign up here</a>.');
       document.getElementById('callList').innerHTML = '<div class="empty-state">No business account found.</div>';
+      dbg('ERROR: 404 — no business row for email: ' + email, 'err');
       return;
     }
     if (!r.ok) {
-      const body = await r.json().catch(() => ({}));
-      throw new Error(body.error || `Server error ${r.status}`);
+      let errMsg = 'HTTP ' + r.status;
+      try { const b = await r.json(); errMsg = b.error || errMsg; } catch(_) {}
+      throw new Error(errMsg);
     }
     biz = await r.json();
-  } catch (e) {
-    showError(`Could not load business data: ${e.message}. Please refresh.`);
+    dbg('Step 5: Business loaded — name: "' + biz.name + '", id: ' + biz.id, 'ok');
+  } catch(e) {
+    showError('Could not load business data: ' + e.message + '. Please refresh.');
     document.getElementById('callList').innerHTML = '<div class="empty-state">Failed to load — please refresh.</div>';
+    dbg('ERROR: /api/my-business failed — ' + e.message, 'err');
     return;
   }
 
   document.getElementById('sidebarBizName').textContent = biz.name;
   document.getElementById('sidebarBizIndustry').textContent = biz.industry || '';
 
+  // ── Step 6: Fetch calls ───────────────────────────────────────────────────
+  dbg('Step 6: GET /api/businesses/' + biz.id + '/calls');
   let calls = [];
   try {
-    const r = await fetch(`${API}/api/businesses/${biz.id}/calls`, {
-      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-    });
-    if (!r.ok) throw new Error('Could not load calls');
+    const r = await withTimeout(
+      fetch(API + '/api/businesses/' + biz.id + '/calls', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      }),
+      5000, 'GET /calls'
+    );
+    dbg('Step 6: Response — HTTP ' + r.status);
+    if (!r.ok) {
+      let errMsg = 'HTTP ' + r.status;
+      try { const b = await r.json(); errMsg = b.error || errMsg; } catch(_) {}
+      throw new Error(errMsg);
+    }
     calls = await r.json();
-  } catch (e) {
-    showError('Could not load calls. Please refresh.');
+    dbg('Step 6: Loaded ' + calls.length + ' call(s)', 'ok');
+  } catch(e) {
+    showError('Could not load calls: ' + e.message + '. Please refresh.');
+    dbg('ERROR: /calls failed — ' + e.message, 'err');
   }
 
-  // Stats
-  const thisWeekCutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const weekCalls = calls.filter(c => new Date(c.created_at).getTime() > thisWeekCutoff);
-  document.getElementById('statMissed').textContent = weekCalls.filter(c => c.status === 'missed').length;
-  document.getElementById('statReplied').textContent = calls.filter(c => c.status === 'replied').length;
+  // ── Step 7: Render ────────────────────────────────────────────────────────
+  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const weekCalls = calls.filter(c => new Date(c.created_at).getTime() > cutoff);
+  document.getElementById('statMissed').textContent    = weekCalls.filter(c => c.status === 'missed').length;
+  document.getElementById('statReplied').textContent   = calls.filter(c => c.status === 'replied').length;
   document.getElementById('statConverted').textContent = calls.filter(c => c.status === 'converted').length;
-  document.getElementById('statTotal').textContent = calls.length;
+  document.getElementById('statTotal').textContent     = calls.length;
 
   const missed = weekCalls.filter(c => c.status === 'missed').length;
   const badge = document.getElementById('navBadge');
   if (missed > 0) { badge.textContent = missed; badge.style.display = 'inline-block'; }
 
+  dbg('Step 7: Rendering call list', 'ok');
   renderCalls(calls, biz.id, token);
 }
 
@@ -563,29 +688,25 @@ function renderCalls(calls, bizId, token) {
     list.innerHTML = '<div class="empty-state">No calls yet. Once your forwarding is set up, missed calls will appear here.</div>';
     return;
   }
-
   list.innerHTML = calls.map(c => {
-    const letter = (c.caller_name || c.caller_number || '?')[0].toUpperCase();
+    const letter  = (c.caller_name || c.caller_number || '?')[0].toUpperCase();
     const display = c.caller_name || c.caller_number || 'Unknown';
-    const time = new Date(c.created_at).toLocaleString('en-IE', {
+    const time    = new Date(c.created_at).toLocaleString('en-IE', {
       day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
     });
-    const isConverted = c.status === 'converted';
-    const convertBtn = !isConverted
-      ? `<button class="convert-btn" onclick="markConverted('${c.id}', this, '${bizId}', '${token || ''}')">Mark Converted</button>`
+    const convertBtn = c.status !== 'converted'
+      ? '<button class="convert-btn" onclick="markConverted(\'' + c.id + '\', this, \'' + bizId + '\', \'' + (token || '') + '\')">Mark Converted</button>'
       : '';
-    return `
-      <div class="call-item" id="call-${c.id}">
-        <div class="call-avatar">${letter}</div>
-        <div class="call-info">
-          <div class="call-number">${display}</div>
-          <div class="call-time">${time}</div>
-        </div>
-        <div class="call-actions">
-          <span class="status-tag ${c.status}">${c.status}</span>
-          ${convertBtn}
-        </div>
-      </div>`;
+    return '<div class="call-item" id="call-' + c.id + '">'
+      + '<div class="call-avatar">' + letter + '</div>'
+      + '<div class="call-info">'
+      + '<div class="call-number">' + display + '</div>'
+      + '<div class="call-time">' + time + '</div>'
+      + '</div>'
+      + '<div class="call-actions">'
+      + '<span class="status-tag ' + c.status + '">' + c.status + '</span>'
+      + convertBtn
+      + '</div></div>';
   }).join('');
 }
 
@@ -593,64 +714,86 @@ async function markConverted(callId, btn, bizId, token) {
   btn.disabled = true;
   btn.textContent = 'Saving...';
   try {
-    const r = await fetch(`${API}/api/calls/${callId}/convert`, {
+    const r = await fetch(API + '/api/calls/' + callId + '/convert', {
       method: 'POST',
-      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      headers: token ? { 'Authorization': 'Bearer ' + token } : {}
     });
-    if (!r.ok) throw new Error();
-    const row = document.getElementById(`call-${callId}`);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const row = document.getElementById('call-' + callId);
     const tag = row.querySelector('.status-tag');
     tag.className = 'status-tag converted';
     tag.textContent = 'converted';
     btn.remove();
-    const converted = parseInt(document.getElementById('statConverted').textContent) || 0;
-    document.getElementById('statConverted').textContent = converted + 1;
+    const n = parseInt(document.getElementById('statConverted').textContent) || 0;
+    document.getElementById('statConverted').textContent = n + 1;
   } catch(e) {
     btn.disabled = false;
     btn.textContent = 'Mark Converted';
   }
 }
 
-// ── Boot ──
-// Wait for window.Clerk to be defined (the script tag is async).
-// Rejects after 10 s so the spinner never runs forever on a load failure.
-function waitForClerk(timeoutMs = 10000) {
+// ── Boot ──────────────────────────────────────────────────────────────────────
+
+function waitForClerk(timeoutMs = 5000) {
   return new Promise((resolve, reject) => {
     if (window.Clerk) return resolve(window.Clerk);
     const timer = setTimeout(() => {
       clearInterval(interval);
-      reject(new Error('Clerk SDK did not load within 10 seconds'));
+      reject(new Error('Clerk SDK not available after ' + (timeoutMs/1000) + 's — possible network block or CSP issue'));
     }, timeoutMs);
     const interval = setInterval(() => {
-      if (window.Clerk) {
-        clearTimeout(timer);
-        clearInterval(interval);
-        resolve(window.Clerk);
-      }
+      if (window.Clerk) { clearTimeout(timer); clearInterval(interval); resolve(window.Clerk); }
     }, 50);
   });
 }
 
 async function boot() {
+  dbg('Step 1: DOMContentLoaded — waiting for Clerk SDK...');
+
+  // Hard overall boot timeout — if we haven't cleared this by the time
+  // the auth/dashboard screen is shown, something is stuck.
+  const overallTimer = setTimeout(() => {
+    fatalError('Boot timed out after 8 seconds. Check the log above for the last completed step.');
+  }, 8000);
+
+  // ── Step 1: Wait for Clerk SDK ────────────────────────────────────────────
   let clerk;
   try {
-    clerk = await waitForClerk();
-    await clerk.load();
-  } catch (err) {
-    console.error('Clerk failed to load:', err);
-    document.getElementById('loading-screen').innerHTML =
-      '<div style="color:#c43d1a;font-family:sans-serif;padding:32px">Failed to load authentication. Please refresh.</div>';
+    clerk = await waitForClerk(5000);
+    dbg('Step 1: Clerk SDK object available on window', 'ok');
+  } catch(err) {
+    clearTimeout(overallTimer);
+    fatalError('Step 1 failed — Clerk SDK did not load: ' + err.message);
     return;
   }
+
+  // ── Step 2: clerk.load() ─────────────────────────────────────────────────
+  dbg('Step 2: Calling clerk.load()...');
+  try {
+    await withTimeout(clerk.load(), 5000, 'clerk.load()');
+    dbg('Step 2: clerk.load() resolved', 'ok');
+  } catch(err) {
+    clearTimeout(overallTimer);
+    fatalError('Step 2 failed — clerk.load() error: ' + err.message);
+    return;
+  }
+
+  const userEmail = clerk.user?.primaryEmailAddress?.emailAddress || 'none';
+  dbg('Step 2: Session check — user signed in: ' + (clerk.user ? 'YES (' + userEmail + ')' : 'NO'));
+
+  clearTimeout(overallTimer); // past the boot phase; auth/dashboard takes over
 
   if (clerk.user) {
     show('dashboard');
     await loadDashboard(clerk.user);
   } else {
+    dbg('Step 2: No active session — mounting sign-in widget', 'ok');
     show('auth-screen');
     clerk.mountSignIn(document.getElementById('clerk-sign-in'));
     clerk.addListener(({ user }) => {
       if (user) {
+        const email = user.primaryEmailAddress?.emailAddress || 'unknown';
+        dbg('Step 3: Clerk auth listener fired — user: ' + email, 'ok');
         show('dashboard');
         loadDashboard(user);
       }
