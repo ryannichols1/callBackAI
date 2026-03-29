@@ -28,7 +28,6 @@ const { createClient } = require('@supabase/supabase-js');
 const helmet    = require('helmet');
 const rateLimit = require('express-rate-limit');
 const cors      = require('cors');
-const crypto    = require('crypto');
 const Stripe    = require('stripe');
 const stripe    = Stripe(process.env.STRIPE_SECRET_KEY);
 const { verifyToken } = require('@clerk/backend');
@@ -111,31 +110,6 @@ function validateTwilioSignature(req, res, next) {
   if (!isValid) {
     console.warn(`Invalid Twilio signature from ${req.ip} on ${req.path}`);
     return res.status(403).send('Forbidden');
-  }
-  next();
-}
-
-// ─── [FIX 5] API Bearer token auth middleware ─────────────────────────────────
-// All /api routes require Authorization: Bearer <API_SECRET>.
-// Uses constant-time comparison to prevent timing attacks.
-
-function requireApiAuth(req, res, next) {
-  const header = req.headers['authorization'] || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
-
-  if (!token) return res.status(401).json({ error: 'Unauthorised' });
-
-  // Allow Clerk JWTs (they start with eyJ)
-  if (token.startsWith('eyJ')) {
-    return next(); // Clerk JWT — valid session
-  }
-
-  // Otherwise check API secret
-  const expected = Buffer.from(process.env.API_SECRET);
-  const provided = Buffer.from(token);
-  if (expected.length !== provided.length || !crypto.timingSafeEqual(expected, provided)) {
-    console.warn(`Failed API auth from ${req.ip}`);
-    return res.status(403).json({ error: 'Forbidden' });
   }
   next();
 }
@@ -346,7 +320,7 @@ app.post('/webhook/sms-reply', validateTwilioSignature, async (req, res) => {
 
 // ─── ROUTE 4: Mark converted (auth required) ─────────────────────────────────
 
-app.post('/api/calls/:callId/convert', requireApiAuth, async (req, res) => {
+app.post('/api/calls/:callId/convert', requireAuth, async (req, res) => {
   if (!isValidUUID(req.params.callId)) return res.status(400).json({ error: 'Invalid ID' });
   await updateCallStatus(req.params.callId, 'converted');
   res.json({ success: true });

@@ -499,6 +499,7 @@ async function loadDashboard(user) {
 
   if (!token) {
     showError('Session expired. Please sign in again.');
+    document.getElementById('callList').innerHTML = '<div class="empty-state">Unable to load — please sign in again.</div>';
     return;
   }
 
@@ -513,12 +514,17 @@ async function loadDashboard(user) {
     });
     if (r.status === 404) {
       showError('No business found for this account. <a href="callback-onboarding.html">Sign up here</a>.');
+      document.getElementById('callList').innerHTML = '<div class="empty-state">No business account found.</div>';
       return;
     }
-    if (!r.ok) throw new Error('Server error');
+    if (!r.ok) {
+      const body = await r.json().catch(() => ({}));
+      throw new Error(body.error || `Server error ${r.status}`);
+    }
     biz = await r.json();
   } catch (e) {
-    showError('Could not load business data. Please try again.');
+    showError(`Could not load business data: ${e.message}. Please refresh.`);
+    document.getElementById('callList').innerHTML = '<div class="empty-state">Failed to load — please refresh.</div>';
     return;
   }
 
@@ -606,12 +612,21 @@ async function markConverted(callId, btn, bizId, token) {
 }
 
 // ── Boot ──
-// Wait for window.Clerk to be defined (the script tag is async)
-function waitForClerk() {
-  return new Promise((resolve) => {
+// Wait for window.Clerk to be defined (the script tag is async).
+// Rejects after 10 s so the spinner never runs forever on a load failure.
+function waitForClerk(timeoutMs = 10000) {
+  return new Promise((resolve, reject) => {
     if (window.Clerk) return resolve(window.Clerk);
+    const timer = setTimeout(() => {
+      clearInterval(interval);
+      reject(new Error('Clerk SDK did not load within 10 seconds'));
+    }, timeoutMs);
     const interval = setInterval(() => {
-      if (window.Clerk) { clearInterval(interval); resolve(window.Clerk); }
+      if (window.Clerk) {
+        clearTimeout(timer);
+        clearInterval(interval);
+        resolve(window.Clerk);
+      }
     }, 50);
   });
 }
