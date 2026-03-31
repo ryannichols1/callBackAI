@@ -121,7 +121,7 @@ async function requireAuth(req, res, next) {
   const header = req.headers['authorization'] || '';
   const token  = header.startsWith('Bearer ') ? header.slice(7) : null;
 
-  console.log(`[requireAuth] ${req.method} ${req.path} | token: ${token ? token.slice(0, 24) + '...' : 'MISSING'} | email: ${req.headers['x-user-email'] || 'none'} | origin: ${req.headers['origin'] || 'none'}`);
+  console.log(`[requireAuth] ${req.method} ${req.path} | token: ${token ? token.slice(0, 20) + '...' : 'MISSING'} | email: ${req.headers['x-user-email'] || 'none'} | origin: ${req.headers['origin'] || 'none'}`);
 
   if (!token) return res.status(401).json({ error: 'Unauthorised' });
 
@@ -735,10 +735,12 @@ app.get('/api/my-business', requireAuth, async (req, res) => {
     .single();
 
   if (error || !data) {
+    console.warn(`[/api/my-business] NOT FOUND for email: "${email}" | db error: ${error?.message || 'none'}`);
     return res.status(404).json({
       error: 'No business found for this email. Please sign up first.',
     });
   }
+  console.log(`[/api/my-business] FOUND business id: ${data.id} name: "${data.name}" for email: "${email}"`);
 
   res.json(data);
 });

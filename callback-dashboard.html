@@ -524,285 +524,282 @@ body {
 
 <script>
 const API = 'https://callbackai-production.up.railway.app';
-const _bootStart = Date.now();
+const _t0  = Date.now();
 
-// ── DEBUG helpers ─────────────────────────────────────────────────────────────
-
-function dbg(msg, type = '') {
-  const elapsed = ((Date.now() - _bootStart) / 1000).toFixed(1);
+// ── Tiny debug log (visible on screen + console) ──────────────────────────────
+function dbg(msg, type) {
+  const s = ((Date.now() - _t0) / 1000).toFixed(1);
   const timeEl = document.getElementById('dbg-time');
-  if (timeEl) timeEl.textContent = elapsed + 's';
+  if (timeEl) timeEl.textContent = s + 's';
   const lines = document.getElementById('debug-lines');
   if (lines) {
-    const div = document.createElement('div');
-    div.className = 'dbg-line' + (type ? ' ' + type : '');
-    div.textContent = '[' + elapsed + 's] ' + msg;
-    lines.appendChild(div);
+    const d = document.createElement('div');
+    d.className = 'dbg-line' + (type ? ' ' + type : '');
+    d.textContent = '[' + s + 's] ' + msg;
+    lines.appendChild(d);
     lines.scrollTop = lines.scrollHeight;
   }
-  console.log('[dbg ' + elapsed + 's] ' + msg);
+  console.log('[' + s + 's] ' + msg);
 }
 
+// Show a permanent red bar at the top of the page AND stop the spinner.
+// Nothing should spin forever — every code path must call this or show().
 function fatalError(msg) {
-  console.error('FATAL:', msg);
-  const spinner = document.getElementById('boot-spinner');
-  if (spinner) spinner.style.display = 'none';
+  document.getElementById('boot-spinner').style.display = 'none';
   dbg('FATAL: ' + msg, 'err');
-  const overlay = document.getElementById('fatal-error');
-  overlay.textContent = 'Something went wrong\n\n' + msg + '\n\nCheck the debug log above for context.';
-  overlay.style.display = 'block';
+  const el = document.getElementById('fatal-error');
+  el.textContent = 'Error: ' + msg;
+  el.style.display = 'block';
 }
 
-// Wraps any promise with a hard timeout so no step can block forever.
-function withTimeout(promise, ms, label) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Timed out after ' + (ms/1000) + 's waiting for: ' + label)), ms)
-    )
-  ]);
+// Reject a promise if it hasn't resolved within `ms` milliseconds.
+function withTimeout(p, ms, label) {
+  return Promise.race([p,
+    new Promise((_, rej) => setTimeout(() =>
+      rej(new Error('Timed out after ' + (ms/1000) + 's: ' + label)), ms))]);
 }
 
 // ── Screen switching ──────────────────────────────────────────────────────────
-
 function show(id) {
-  ['loading-screen', 'auth-screen', 'dashboard'].forEach(s => {
-    const el = document.getElementById(s);
-    el.style.display = (s === id) ? (s === 'auth-screen' ? 'flex' : 'block') : 'none';
-  });
+  document.getElementById('loading-screen').style.display = id === 'loading-screen' ? 'flex'  : 'none';
+  document.getElementById('auth-screen').style.display    = id === 'auth-screen'    ? 'flex'  : 'none';
+  document.getElementById('dashboard').style.display      = id === 'dashboard'      ? 'block' : 'none';
 }
 
-function showError(msg) {
-  document.getElementById('error-area').innerHTML =
-    '<div class="error-banner">' + msg + '</div>';
+// Show sign-in widget — used both on first load and on 401.
+// afterSignInUrl uses only origin+pathname, never query params, to avoid
+// URL accumulation across multiple redirects.
+function mountSignIn(clerk) {
+  show('auth-screen');
+  clerk.mountSignIn(document.getElementById('clerk-sign-in'), {
+    afterSignInUrl: window.location.origin + window.location.pathname,
+    afterSignUpUrl: window.location.origin + window.location.pathname,
+  });
 }
 
 async function signOut() {
   await window.Clerk.signOut();
-  show('auth-screen');
+  mountSignIn(window.Clerk);
 }
 
-// ── Dashboard loader ──────────────────────────────────────────────────────────
-
-async function loadDashboard(user) {
-  const email = user.primaryEmailAddress?.emailAddress;
-  dbg('Step 3: User object received — email: ' + (email || 'NONE'), 'ok');
-
+// ── Dashboard data loader ─────────────────────────────────────────────────────
+async function loadDashboard(clerk) {
+  // Step A: email
+  const email = clerk.user.primaryEmailAddress?.emailAddress;
+  dbg('A: email = ' + (email || 'NONE'));
   if (!email) {
-    showError('No email address found on your Clerk account.');
-    dbg('ERROR: no email on user object — cannot look up business', 'err');
-    document.getElementById('callList').innerHTML = '<div class="empty-state">No email found.</div>';
+    show('dashboard');
+    document.getElementById('error-area').innerHTML =
+      '<div class="error-banner">No email address found on your Clerk account. Please contact support.</div>';
+    document.getElementById('callList').innerHTML = '';
     return;
   }
 
-  // ── Step 4: Get Clerk JWT ─────────────────────────────────────────────────
-  dbg('Step 4: Calling clerk.session.getToken()...');
+  // Step B: get JWT — session must exist here since clerk.user is set
+  dbg('B: calling clerk.session.getToken()...');
   let token;
   try {
-    if (!window.Clerk?.session) throw new Error('clerk.session is null — session not established');
-    token = await withTimeout(window.Clerk.session.getToken(), 5000, 'clerk.session.getToken()');
-    dbg('Step 4: Token received — ' + token.slice(0, 28) + '...', 'ok');
-  } catch(e) {
-    showError('Could not get session token: ' + e.message);
-    dbg('ERROR: getToken() failed — ' + e.message, 'err');
-    document.getElementById('callList').innerHTML = '<div class="empty-state">Session error — please sign in again.</div>';
+    if (!clerk.session) throw new Error('clerk.session is null');
+    token = await withTimeout(clerk.session.getToken(), 5000, 'getToken');
+    dbg('B: token ok — ' + token.slice(0, 20) + '...', 'ok');
+  } catch (e) {
+    fatalError('Could not get session token: ' + e.message);
     return;
   }
 
-  // ── Step 5: Fetch business ────────────────────────────────────────────────
-  dbg('Step 5: GET /api/my-business (email: ' + email + ')');
+  // Step C: fetch business
+  dbg('C: GET /api/my-business  email=' + email);
   let biz;
   try {
     const r = await withTimeout(
       fetch(API + '/api/my-business', {
         headers: { 'Authorization': 'Bearer ' + token, 'X-User-Email': email }
-      }),
-      5000, 'GET /api/my-business'
-    );
-    dbg('Step 5: Response — HTTP ' + r.status);
+      }), 8000, 'GET /api/my-business');
+
+    dbg('C: HTTP ' + r.status);
+
+    if (r.status === 401) {
+      // Token rejected by server — session is stale, force re-login
+      dbg('C: 401 — session rejected, re-mounting sign-in', 'err');
+      mountSignIn(clerk);
+      // Re-attach listener so the next login continues normally
+      clerk.addListener(({ user }) => {
+        if (user) { dbg('re-login: user detected', 'ok'); loadDashboard(clerk); }
+      });
+      return;
+    }
     if (r.status === 404) {
-      showError('No business found for this account. <a href="callback-onboarding.html">Sign up here</a>.');
-      document.getElementById('callList').innerHTML = '<div class="empty-state">No business account found.</div>';
-      dbg('ERROR: 404 — no business row for email: ' + email, 'err');
+      show('dashboard');
+      document.getElementById('error-area').innerHTML =
+        '<div class="error-banner">No account found for <strong>' + email + '</strong>. ' +
+        '<a href="callback-onboarding.html">Sign up here</a>.</div>';
+      document.getElementById('callList').innerHTML = '';
+      dbg('C: 404 — no business for this email', 'err');
       return;
     }
     if (!r.ok) {
-      let errMsg = 'HTTP ' + r.status;
-      try { const b = await r.json(); errMsg = b.error || errMsg; } catch(_) {}
-      throw new Error(errMsg);
+      let msg = 'HTTP ' + r.status;
+      try { msg = (await r.json()).error || msg; } catch (_) {}
+      throw new Error(msg);
     }
     biz = await r.json();
-    dbg('Step 5: Business loaded — name: "' + biz.name + '", id: ' + biz.id, 'ok');
-  } catch(e) {
-    showError('Could not load business data: ' + e.message + '. Please refresh.');
-    document.getElementById('callList').innerHTML = '<div class="empty-state">Failed to load — please refresh.</div>';
-    dbg('ERROR: /api/my-business failed — ' + e.message, 'err');
+    dbg('C: business = "' + biz.name + '" id=' + biz.id, 'ok');
+  } catch (e) {
+    fatalError('Could not load business data: ' + e.message);
     return;
   }
 
-  document.getElementById('sidebarBizName').textContent = biz.name;
+  // All data loaded — now switch to the dashboard view
+  show('dashboard');
+  document.getElementById('sidebarBizName').textContent    = biz.name;
   document.getElementById('sidebarBizIndustry').textContent = biz.industry || '';
 
-  // ── Step 6: Fetch calls ───────────────────────────────────────────────────
-  dbg('Step 6: GET /api/businesses/' + biz.id + '/calls');
+  // Step D: fetch calls
+  dbg('D: GET /api/businesses/' + biz.id + '/calls');
   let calls = [];
   try {
     const r = await withTimeout(
       fetch(API + '/api/businesses/' + biz.id + '/calls', {
         headers: { 'Authorization': 'Bearer ' + token }
-      }),
-      5000, 'GET /calls'
-    );
-    dbg('Step 6: Response — HTTP ' + r.status);
+      }), 8000, 'GET /calls');
+
+    dbg('D: HTTP ' + r.status);
     if (!r.ok) {
-      let errMsg = 'HTTP ' + r.status;
-      try { const b = await r.json(); errMsg = b.error || errMsg; } catch(_) {}
-      throw new Error(errMsg);
+      let msg = 'HTTP ' + r.status;
+      try { msg = (await r.json()).error || msg; } catch (_) {}
+      throw new Error(msg);
     }
     calls = await r.json();
-    dbg('Step 6: Loaded ' + calls.length + ' call(s)', 'ok');
-  } catch(e) {
-    showError('Could not load calls: ' + e.message + '. Please refresh.');
-    dbg('ERROR: /calls failed — ' + e.message, 'err');
+    dbg('D: ' + calls.length + ' call(s) loaded', 'ok');
+  } catch (e) {
+    document.getElementById('error-area').innerHTML =
+      '<div class="error-banner">Could not load calls: ' + e.message + '</div>';
+    dbg('D: calls failed — ' + e.message, 'err');
+    // Still render stats at zero rather than leaving the page broken
   }
 
-  // ── Step 7: Render ────────────────────────────────────────────────────────
-  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  // Step E: render stats
+  const cutoff    = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const weekCalls = calls.filter(c => new Date(c.created_at).getTime() > cutoff);
   document.getElementById('statMissed').textContent    = weekCalls.filter(c => c.status === 'missed').length;
   document.getElementById('statReplied').textContent   = calls.filter(c => c.status === 'replied').length;
   document.getElementById('statConverted').textContent = calls.filter(c => c.status === 'converted').length;
   document.getElementById('statTotal').textContent     = calls.length;
 
-  const missed = weekCalls.filter(c => c.status === 'missed').length;
+  const missedCount = weekCalls.filter(c => c.status === 'missed').length;
   const badge = document.getElementById('navBadge');
-  if (missed > 0) { badge.textContent = missed; badge.style.display = 'inline-block'; }
+  if (missedCount > 0) { badge.textContent = missedCount; badge.style.display = 'inline-block'; }
 
-  dbg('Step 7: Rendering call list', 'ok');
+  dbg('E: rendering ' + calls.length + ' calls', 'ok');
   renderCalls(calls, biz.id, token);
 }
 
 function renderCalls(calls, bizId, token) {
   const list = document.getElementById('callList');
   if (!calls.length) {
-    list.innerHTML = '<div class="empty-state">No calls yet. Once your forwarding is set up, missed calls will appear here.</div>';
+    list.innerHTML = '<div class="empty-state">No calls yet. Once your number is forwarded, missed calls will appear here.</div>';
     return;
   }
   list.innerHTML = calls.map(c => {
     const letter  = (c.caller_name || c.caller_number || '?')[0].toUpperCase();
     const display = c.caller_name || c.caller_number || 'Unknown';
     const time    = new Date(c.created_at).toLocaleString('en-IE', {
-      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
-    });
-    const convertBtn = c.status !== 'converted'
-      ? '<button class="convert-btn" onclick="markConverted(\'' + c.id + '\', this, \'' + bizId + '\', \'' + (token || '') + '\')">Mark Converted</button>'
+      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const btn = c.status !== 'converted'
+      ? '<button class="convert-btn" onclick="markConverted(\'' + c.id + '\',this,\'' + token + '\')">Mark Converted</button>'
       : '';
     return '<div class="call-item" id="call-' + c.id + '">'
       + '<div class="call-avatar">' + letter + '</div>'
-      + '<div class="call-info">'
-      + '<div class="call-number">' + display + '</div>'
-      + '<div class="call-time">' + time + '</div>'
-      + '</div>'
-      + '<div class="call-actions">'
-      + '<span class="status-tag ' + c.status + '">' + c.status + '</span>'
-      + convertBtn
-      + '</div></div>';
+      + '<div class="call-info"><div class="call-number">' + display + '</div>'
+      + '<div class="call-time">' + time + '</div></div>'
+      + '<div class="call-actions"><span class="status-tag ' + c.status + '">' + c.status + '</span>' + btn + '</div>'
+      + '</div>';
   }).join('');
 }
 
-async function markConverted(callId, btn, bizId, token) {
-  btn.disabled = true;
-  btn.textContent = 'Saving...';
+async function markConverted(callId, btn, token) {
+  btn.disabled = true; btn.textContent = 'Saving...';
   try {
     const r = await fetch(API + '/api/calls/' + callId + '/convert', {
-      method: 'POST',
-      headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+      method: 'POST', headers: { 'Authorization': 'Bearer ' + token }
     });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const row = document.getElementById('call-' + callId);
-    const tag = row.querySelector('.status-tag');
-    tag.className = 'status-tag converted';
-    tag.textContent = 'converted';
+    row.querySelector('.status-tag').className = 'status-tag converted';
+    row.querySelector('.status-tag').textContent = 'converted';
     btn.remove();
-    const n = parseInt(document.getElementById('statConverted').textContent) || 0;
-    document.getElementById('statConverted').textContent = n + 1;
-  } catch(e) {
-    btn.disabled = false;
-    btn.textContent = 'Mark Converted';
+    const el = document.getElementById('statConverted');
+    el.textContent = (parseInt(el.textContent) || 0) + 1;
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Mark Converted';
   }
 }
 
-// ── Boot ──────────────────────────────────────────────────────────────────────
+// ── Boot sequence ─────────────────────────────────────────────────────────────
+// Step 1: Wait for the async Clerk CDN script to define window.Clerk
+// Step 2: Call clerk.load() which reads the session cookie
+// Step 3: If user → load dashboard. If no user → show sign-in widget.
+// After sign-in Clerk redirects back to this exact page (afterSignInUrl),
+// boot() runs again, now clerk.user exists, and step 3 goes straight to dashboard.
 
-function waitForClerk(timeoutMs = 5000) {
+function waitForClerk(ms) {
   return new Promise((resolve, reject) => {
     if (window.Clerk) return resolve(window.Clerk);
-    const timer = setTimeout(() => {
-      clearInterval(interval);
-      reject(new Error('Clerk SDK not available after ' + (timeoutMs/1000) + 's — possible network block or CSP issue'));
-    }, timeoutMs);
-    const interval = setInterval(() => {
-      if (window.Clerk) { clearTimeout(timer); clearInterval(interval); resolve(window.Clerk); }
+    const t = setTimeout(() =>
+      reject(new Error('Clerk SDK did not load in ' + (ms/1000) + 's — check network / CSP')), ms);
+    const i = setInterval(() => {
+      if (window.Clerk) { clearTimeout(t); clearInterval(i); resolve(window.Clerk); }
     }, 50);
   });
 }
 
 async function boot() {
-  dbg('Step 1: DOMContentLoaded — waiting for Clerk SDK...');
+  dbg('1: waiting for Clerk SDK...');
 
-  // Hard overall boot timeout — if we haven't cleared this by the time
-  // the auth/dashboard screen is shown, something is stuck.
-  const overallTimer = setTimeout(() => {
-    fatalError('Boot timed out after 8 seconds. Check the log above for the last completed step.');
-  }, 8000);
+  // Hard 8-second guard: if boot() hasn't called show() by then, something
+  // is completely stuck and the user deserves an error, not an infinite spinner.
+  const guard = setTimeout(() =>
+    fatalError('Timed out after 8s. Last step: see debug log above.'), 8000);
 
-  // ── Step 1: Wait for Clerk SDK ────────────────────────────────────────────
   let clerk;
   try {
     clerk = await waitForClerk(5000);
-    dbg('Step 1: Clerk SDK object available on window', 'ok');
-  } catch(err) {
-    clearTimeout(overallTimer);
-    fatalError('Step 1 failed — Clerk SDK did not load: ' + err.message);
+    dbg('1: Clerk SDK ready', 'ok');
+  } catch (e) {
+    clearTimeout(guard);
+    fatalError(e.message);
     return;
   }
 
-  // ── Step 2: clerk.load() ─────────────────────────────────────────────────
-  dbg('Step 2: Calling clerk.load()...');
+  dbg('2: calling clerk.load()...');
   try {
     await withTimeout(clerk.load(), 5000, 'clerk.load()');
-    dbg('Step 2: clerk.load() resolved', 'ok');
-  } catch(err) {
-    clearTimeout(overallTimer);
-    fatalError('Step 2 failed — clerk.load() error: ' + err.message);
+    dbg('2: clerk.load() done', 'ok');
+  } catch (e) {
+    clearTimeout(guard);
+    fatalError('clerk.load() failed: ' + e.message);
     return;
   }
 
-  const userEmail = clerk.user?.primaryEmailAddress?.emailAddress || 'none';
-  dbg('Step 2: Session check — user signed in: ' + (clerk.user ? 'YES (' + userEmail + ')' : 'NO'));
+  clearTimeout(guard); // boot succeeded — data loading has its own timeouts
 
-  clearTimeout(overallTimer); // past the boot phase; auth/dashboard takes over
+  const email = clerk.user?.primaryEmailAddress?.emailAddress;
+  dbg('3: user = ' + (clerk.user ? 'YES (' + email + ')' : 'NO'));
 
   if (clerk.user) {
-    show('dashboard');
-    await loadDashboard(clerk.user);
+    // User already signed in (page loaded or redirected back after sign-in)
+    await loadDashboard(clerk);
   } else {
-    dbg('Step 2: No active session — mounting sign-in widget', 'ok');
-    show('auth-screen');
-    // afterSignInUrl: redirect back to THIS page after login so boot() runs
-    // again with clerk.user set. Without this Clerk defaults to "/" and the
-    // user ends up on the landing page instead of the dashboard.
-    clerk.mountSignIn(document.getElementById('clerk-sign-in'), {
-      afterSignInUrl: window.location.href,
-      afterSignUpUrl: window.location.href,
-    });
-    // Listener handles the in-page case (if Clerk ever settles without a redirect)
+    // No session — show the sign-in widget
+    dbg('3: no session — showing sign-in', 'ok');
+    mountSignIn(clerk);
+
+    // addListener covers the edge case where Clerk resolves the session
+    // in-page without a full redirect (e.g. same-tab pop-up flows)
     clerk.addListener(({ user }) => {
       if (user) {
-        const email = user.primaryEmailAddress?.emailAddress || 'unknown';
-        dbg('Step 3: Clerk auth listener fired — user: ' + email, 'ok');
-        show('dashboard');
-        loadDashboard(user);
+        dbg('3: listener fired — user signed in', 'ok');
+        loadDashboard(clerk);
       }
     });
   }
