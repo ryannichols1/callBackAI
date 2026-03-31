@@ -21,15 +21,28 @@
  */
 
 // ─── Global error handlers — must be first ───────────────────────────────────
-// Without these, any uncaught exception silently kills the process on Railway
-// with no log output. These ensure every crash is visible in Railway logs.
-process.on('uncaughtException', (err) => {
-  console.error('UNCAUGHT EXCEPTION — process will exit:', err);
-  process.exit(1);
-});
-process.on('unhandledRejection', (reason) => {
-  console.error('UNHANDLED PROMISE REJECTION:', reason);
-  // Don't exit — log and continue so one bad async path doesn't kill the server
+// Log every crash with a full stack trace so Railway logs show the root cause.
+//
+// IMPORTANT: uncaughtException must NOT call process.exit().
+// If it does, any background async error (JWKS fetch, Clerk init, etc.) that
+// throws after the startup banner will kill the server, Railway restarts it,
+// same error fires, infinite crash loop. Log and keep running instead.
+process.on('uncaughtException',  (err) => console.error('UNCAUGHT EXCEPTION:', err.stack || err));
+process.on('unhandledRejection', (err) => console.error('UNHANDLED REJECTION:', err));
+
+// Graceful shutdown on SIGTERM (Railway sends this before every new deployment
+// and when a health check fails). Without this handler Node.js exits immediately
+// which Railway can interpret as unhealthy and trigger a restart loop.
+process.on('SIGTERM', () => {
+  console.log('[shutdown] SIGTERM received — closing server gracefully');
+  if (typeof server !== 'undefined') {
+    server.close(() => {
+      console.log('[shutdown] HTTP server closed');
+      process.exit(0);
+    });
+  } else {
+    process.exit(0);
+  }
 });
 
 require('dotenv').config();
