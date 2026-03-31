@@ -20,7 +20,35 @@
  *   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
  */
 
+// ─── Global error handlers — must be first ───────────────────────────────────
+// Without these, any uncaught exception silently kills the process on Railway
+// with no log output. These ensure every crash is visible in Railway logs.
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION — process will exit:', err);
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('UNHANDLED PROMISE REJECTION:', reason);
+  // Don't exit — log and continue so one bad async path doesn't kill the server
+});
+
 require('dotenv').config();
+
+// ─── Validate env vars BEFORE any client initialisation ──────────────────────
+// Stripe(undefined) throws an uncaught exception — if this check runs after
+// the Stripe() call and STRIPE_SECRET_KEY is missing, the process crashes with
+// no useful log. Check first, crash with a clear message if anything is absent.
+const REQUIRED_ENV = [
+  'TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_PHONE_NUMBER',
+  'ANTHROPIC_API_KEY', 'SUPABASE_URL', 'SUPABASE_SERVICE_KEY', 'API_SECRET',
+  'STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID', 'CLERK_SECRET_KEY',
+];
+const missing = REQUIRED_ENV.filter(k => !process.env[k]);
+if (missing.length > 0) {
+  console.error(`STARTUP FAILED — missing required env vars: ${missing.join(', ')}`);
+  process.exit(1);
+}
+
 const express   = require('express');
 const twilio    = require('twilio');
 const Anthropic = require('@anthropic-ai/sdk');
@@ -29,22 +57,9 @@ const helmet    = require('helmet');
 const rateLimit = require('express-rate-limit');
 const cors      = require('cors');
 const Stripe    = require('stripe');
+// Safe to call now — STRIPE_SECRET_KEY is guaranteed to exist
 const stripe    = Stripe(process.env.STRIPE_SECRET_KEY);
 const { verifyToken } = require('@clerk/backend');
-
-// ─── [FIX 1] Validate all required env vars on startup ───────────────────────
-// Fail immediately if any secret is missing — never run half-configured.
-
-const REQUIRED_ENV = [
-  'TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_PHONE_NUMBER',
-  'ANTHROPIC_API_KEY', 'SUPABASE_URL', 'SUPABASE_SERVICE_KEY', 'API_SECRET',
-  'STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID', 'CLERK_SECRET_KEY',
-];
-const missing = REQUIRED_ENV.filter(k => !process.env[k]);
-if (missing.length > 0) {
-  console.error(`Missing required env vars: ${missing.join(', ')}`);
-  process.exit(1);
-}
 
 // ─── App setup ────────────────────────────────────────────────────────────────
 
@@ -759,7 +774,8 @@ app.use((err, req, res, next) => {
 // ─── Start ────────────────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+console.log(`[startup] binding to port ${PORT}...`);
+const server = app.listen(PORT, () => {
   console.log(`\nCallBack AI on port ${PORT}`);
   console.log(`   ✓ Twilio signature validation (active)`);
   console.log(`   ✓ API Bearer token auth`);
@@ -767,4 +783,11 @@ app.listen(PORT, () => {
   console.log(`   ✓ Input validation & sanitisation`);
   console.log(`   ✓ Security headers (Helmet)`);
   console.log(`   ✓ Env var validation at startup\n`);
+});
+
+// Catch errors binding the port (e.g. EADDRINUSE) — without this the error
+// is an uncaught exception that would previously produce no log output.
+server.on('error', (err) => {
+  console.error(`[startup] server failed to start on port ${PORT}:`, err.message);
+  process.exit(1);
 });
