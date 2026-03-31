@@ -203,6 +203,260 @@ async function updateCallStatus(callId, status) {
   if (error) console.error('updateCallStatus error:', error.message);
 }
 
+// ─── AI SMS conversation helpers ──────────────────────────────────────────────
+
+// In-memory rate limiter: tracks the last AI reply timestamp per caller number.
+// Prevents AI reply loops and SMS bombing — max 1 AI reply per minute per number.
+// Map<E164Phone, lastRepliedMs>
+const _aiRateLimit = new Map();
+const AI_RATE_LIMIT_MS = 60_000; // 1 minute
+
+// After this many messages in a thread we stop the AI and send a human handoff.
+// Prevents infinite loops and keeps Railway costs bounded.
+const AI_MAX_MESSAGES = 10;
+
+// Sent when Claude API fails or a prompt injection attempt is detected.
+const SMS_FALLBACK = "Thanks for getting back to us — we'll have someone call you shortly.";
+
+// Sent when the conversation hits the message limit.
+const SMS_HANDOFF  = "Thanks so much for the details! I've passed everything on and someone from the team will be in touch very shortly to sort everything out. Talk soon!";
+
+// Prompt-injection guard patterns.
+// If any match the inbound SMS we skip Claude entirely and send the fallback.
+// This prevents callers from hijacking the AI's behaviour via crafted messages.
+const INJECTION_PATTERNS = [
+  /ignore\s+(all\s+)?(previous|prior)\s+instructions/i,
+  /forget\s+(everything|all|previous|prior)/i,
+  /you\s+are\s+now\s+(a|an)\s/i,
+  /new\s+(system\s+)?prompt/i,
+  /override\s+(your\s+)?(instructions|rules|guidelines)/i,
+  /jailbreak/i,
+  /\bDAN\b/,  // "Do Anything Now" jailbreak variant
+];
+
+/**
+ * Sanitise an inbound SMS before passing to Claude.
+ * - Truncates at 500 chars to cap prompt size.
+ * - Returns null if an injection pattern is matched (triggers fallback).
+ * The raw body (up to 1600 chars) is still stored in the DB; only
+ * the sanitised version is ever sent to the Claude API.
+ */
+function sanitiseSmsBody(raw) {
+  const text = String(raw || '').trim().slice(0, 500);
+  for (const pattern of INJECTION_PATTERNS) {
+    if (pattern.test(text)) return null;
+  }
+  return text;
+}
+
+/**
+ * Build the Claude system prompt for a given business.
+ * Receives ONLY name and industry — never email, Stripe IDs, or phone number.
+ * The customer's phone number is also never included anywhere in the prompt.
+ */
+function buildAiSystemPrompt(bizName, bizIndustry) {
+  const industry = isValidIndustry(bizIndustry) ? bizIndustry : 'general';
+  const name     = safeName(bizName);
+
+  const industryDesc = {
+    trades:     'a local trades business (e.g. plumbing, electrical, or carpentry)',
+    dental:     'a dental clinic',
+    salon:      'a hair and beauty salon',
+    realestate: 'a property agency',
+    restaurant: 'a restaurant',
+    general:    'a local business',
+  }[industry];
+
+  return `You are a helpful AI assistant for ${name}, ${industryDesc}.
+
+A customer called ${name} and the call went unanswered. An automatic SMS was sent to apologise. The customer has now replied and you are continuing the conversation on behalf of ${name}.
+
+YOUR ROLE:
+- Respond warmly and helpfully on behalf of ${name}
+- Gather the details needed to help — what the customer needs, when they are available, any relevant specifics (type of job, location, party size, etc.)
+- Guide the conversation toward a clear next step
+- Keep every reply SHORT — this is SMS, not email. Maximum 2–3 sentences.
+- Always end with a question or a clear next step
+
+TONE: ${INDUSTRY_TONES[industry]}
+
+STRICT RULES — follow these without exception:
+1. NEVER make specific promises about pricing, timelines, or availability
+2. If the customer asks directly whether they are speaking to a human or an AI, be honest: say you are an AI assistant for ${name} and that a team member will follow up personally
+3. NEVER discuss anything unrelated to helping this customer with their enquiry
+4. NEVER mention competitor businesses
+5. If the customer is ready to book, wants a quote, or the situation is complex, end your reply with: "I'll make sure the team at ${name} gets back to you directly to sort everything out — does that work for you?"
+6. Read the full conversation history and move it forward — do NOT repeat yourself
+7. Do NOT invent facts about the business (hours, prices, staff names, policies)`;
+}
+
+/**
+ * Send an SMS via the Twilio API and log it to the messages table.
+ * IMPORTANT: We log only the message ID to Railway logs — never the content.
+ */
+async function sendAndLogSms(fromNumber, toNumber, body, callId) {
+  try {
+    const result = await twilioClient.messages.create({ body, from: fromNumber, to: toNumber });
+    // Log SID only — content is never written to logs (privacy)
+    console.log(`[ai-sms] sent | call: ${callId} | twilio_sid: ${result.sid}`);
+  } catch (err) {
+    console.error(`[ai-sms] Twilio send failed | call: ${callId} | ${err.message}`);
+    return; // Don't log a message that was never delivered
+  }
+  const { data: msg, error } = await supabase
+    .from('messages')
+    .insert({ call_id: callId, direction: 'outbound', body })
+    .select('id').single();
+  if (!error) console.log(`[ai-sms] logged outbound | msg_id: ${msg.id} | call: ${callId}`);
+}
+
+/**
+ * Core AI reply logic — called asynchronously after the Twilio webhook
+ * has already received its <Response/> so we're not racing the 15s timeout.
+ *
+ * Security measures applied here:
+ *  - Rate limit: max 1 AI reply / 60s per caller number
+ *  - Injection guard: sanitiseSmsBody() rejects crafted messages
+ *  - Message limit: AI stops at AI_MAX_MESSAGES and hands off to human
+ *  - Minimal data to Claude: only business name + industry, no PII
+ *  - Claude API failure: always falls back to SMS_FALLBACK, never throws
+ */
+async function processInboundSms(from, rawBody, toNumber) {
+  // ── 1. Retrieve the most recent call for this caller ─────────────────────
+  const { data: calls } = await supabase
+    .from('calls')
+    .select('id, business_id')
+    .eq('caller_number', from)
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (!calls?.length) {
+    console.log('[ai-sms] no call record found, skipping');
+    return;
+  }
+
+  const { id: callId, business_id: businessId } = calls[0];
+
+  // ── 2. Log the inbound message (ID only to logs, full body to DB) ─────────
+  const safeBody = String(rawBody || '').slice(0, 1600);
+  const { data: inMsg } = await supabase
+    .from('messages')
+    .insert({ call_id: callId, direction: 'inbound', body: safeBody })
+    .select('id').single();
+  console.log(`[ai-sms] logged inbound | msg_id: ${inMsg?.id} | call: ${callId}`);
+
+  await updateCallStatus(callId, 'replied');
+
+  // ── 3. Rate limit — max 1 AI reply per minute per caller number ───────────
+  const now       = Date.now();
+  const lastReply = _aiRateLimit.get(from);
+  if (lastReply && (now - lastReply) < AI_RATE_LIMIT_MS) {
+    console.log(`[ai-sms] rate limited | call: ${callId}`);
+    return;
+  }
+
+  // ── 4. Injection guard — check before anything reaches Claude ─────────────
+  const cleanBody = sanitiseSmsBody(safeBody);
+  if (cleanBody === null) {
+    // Injection pattern detected — send safe fallback, log nothing about content
+    console.log(`[ai-sms] injection pattern detected | call: ${callId} | sending fallback`);
+    _aiRateLimit.set(from, now);
+    await sendAndLogSms(toNumber, from, SMS_FALLBACK, callId);
+    return;
+  }
+
+  // ── 5. Fetch conversation history (after logging inbound so it's included) ─
+  const { data: messages } = await supabase
+    .from('messages')
+    .select('id, direction, body, sent_at')
+    .eq('call_id', callId)
+    .order('sent_at', { ascending: true });
+
+  if (!messages?.length) return;
+
+  // ── 6. Message limit — hand off to human after AI_MAX_MESSAGES ────────────
+  if (messages.length >= AI_MAX_MESSAGES) {
+    console.log(`[ai-sms] message limit reached (${messages.length}) | call: ${callId}`);
+    _aiRateLimit.set(from, now);
+    await sendAndLogSms(toNumber, from, SMS_HANDOFF, callId);
+    return;
+  }
+
+  // ── 7. Fetch business — name and industry only, no PII ────────────────────
+  const { data: business } = await supabase
+    .from('businesses')
+    .select('name, industry') // deliberately omits email, stripe IDs, phone
+    .eq('id', businessId)
+    .single();
+
+  if (!business) {
+    console.log(`[ai-sms] business not found for id: ${businessId}`);
+    return;
+  }
+
+  // ── 8. Build Claude messages array from conversation history ─────────────
+  // The very first message is usually the outbound "missed call" auto-text.
+  // Claude requires the first turn to be 'user', so we skip leading outbound
+  // messages and include the first one as context in the system prompt.
+  let firstOutboundBody = null;
+  let historyToConvert  = messages;
+
+  if (messages[0]?.direction === 'outbound') {
+    firstOutboundBody = messages[0].body;
+    historyToConvert  = messages.slice(1);
+  }
+
+  // Map inbound → user, outbound → assistant.
+  // Merge consecutive same-role messages so Claude never gets adjacent same-role turns.
+  // Customer phone number is NEVER included in any message content sent to Claude.
+  const claudeMessages = [];
+  for (const msg of historyToConvert) {
+    const role = msg.direction === 'inbound' ? 'user' : 'assistant';
+    if (claudeMessages.length > 0 && claudeMessages[claudeMessages.length - 1].role === role) {
+      claudeMessages[claudeMessages.length - 1].content += '\n' + msg.body;
+    } else {
+      claudeMessages.push({ role, content: msg.body });
+    }
+  }
+
+  // Bail out if there's nothing for Claude to respond to
+  if (!claudeMessages.length || claudeMessages[0].role !== 'user') {
+    console.log(`[ai-sms] no user turn yet | call: ${callId} | skipping`);
+    return;
+  }
+
+  // ── 9. Build system prompt (no PII — name and industry only) ─────────────
+  const systemPrompt = buildAiSystemPrompt(business.name, business.industry);
+
+  // Optionally append the initial auto-text as context so Claude knows
+  // what the business already said (still no phone number)
+  const fullSystem = firstOutboundBody
+    ? systemPrompt + `\n\nThe initial SMS you sent to the customer was:\n"${firstOutboundBody.slice(0, 320)}"`
+    : systemPrompt;
+
+  // ── 10. Call Claude — fallback to safe message on any failure ─────────────
+  let replyText;
+  try {
+    const response = await anthropic.messages.create({
+      model:      'claude-haiku-4-5-20251001', // fast + cheap for SMS
+      max_tokens: 200,
+      system:     fullSystem,
+      messages:   claudeMessages,
+    });
+    replyText = response.content[0].text.trim();
+    // Hard cap at 320 chars (2 SMS segments) — keeps costs and UX predictable
+    if (replyText.length > 320) replyText = replyText.slice(0, 317) + '...';
+  } catch (err) {
+    // Log error details but send a safe, non-revealing fallback to the customer
+    console.error(`[ai-sms] Claude API error | call: ${callId} | ${err.message}`);
+    replyText = SMS_FALLBACK;
+  }
+
+  // ── 11. Send reply and update rate limiter ────────────────────────────────
+  _aiRateLimit.set(from, now);
+  await sendAndLogSms(toNumber, from, replyText, callId);
+}
+
 // ─── ROUTE 1: Incoming call ───────────────────────────────────────────────────
 
 app.post('/webhook/incoming-call', validateTwilioSignature, (req, res) => {
@@ -300,25 +554,23 @@ app.post('/webhook/call-status', validateTwilioSignature, async (req, res) => {
 });
 
 // ─── ROUTE 3: Inbound SMS reply ───────────────────────────────────────────────
+// Twilio requires a response within 15 seconds or it retries the webhook.
+// We respond immediately with an empty <Response/> then process the AI reply
+// asynchronously so we never race that deadline.
 
 app.post('/webhook/sms-reply', validateTwilioSignature, async (req, res) => {
-  const { From: from, Body: body } = req.body;
+  const { From: from, Body: body, To: to } = req.body;
 
-  if (!isValidPhone(from)) return res.status(400).send('Bad Request');
+  if (!isValidPhone(from) || !isValidPhone(to)) return res.status(400).send('Bad Request');
 
-  const safeBody = String(body || '').slice(0, 1600); // max SMS length
-
-  const { data: calls } = await supabase
-    .from('calls').select('id')
-    .eq('caller_number', from)
-    .order('created_at', { ascending: false }).limit(1);
-
-  if (calls?.length > 0) {
-    await logMessage(calls[0].id, 'inbound', safeBody);
-    await updateCallStatus(calls[0].id, 'replied');
-  }
-
+  // Respond to Twilio immediately — AI processing happens in the background
   res.type('text/xml').send('<Response/>');
+
+  // Fire-and-forget: processInboundSms handles logging, rate limiting,
+  // injection detection, Claude, and the outbound SMS reply
+  processInboundSms(from, body, to).catch(err =>
+    console.error(`[sms-reply] unhandled error | from: ${from.slice(0, 6)}*** | ${err.message}`)
+  );
 });
 
 // ─── ROUTE 4: Mark converted (auth required) ─────────────────────────────────
