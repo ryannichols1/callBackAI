@@ -50,11 +50,19 @@ body {
 
 /* ── Auth screen ── */
 #auth-screen {
-  display: none;
+  display: none;          /* JS sets this to 'flex' via show('auth-screen') */
   align-items: center;
   justify-content: center;
   min-height: 100vh;
+  width: 100%;            /* must be explicit — flex containers don't auto-stretch */
   background: var(--bg);
+}
+
+/* The Clerk widget mounts into this div. Without explicit dimensions the widget
+   renders into a 0×0 box and appears blank even though it mounted successfully. */
+#clerk-sign-in {
+  min-width: 400px;
+  min-height: 300px;
 }
 
 /* ── Dashboard ── */
@@ -697,23 +705,47 @@ function show(id) {
 
 // Show sign-in widget — used on first load, 401, and mid-flow MFA steps.
 //
-// routing: 'hash' is REQUIRED so Clerk can handle its own sub-routes
-// (#/factor-two, #/verify-email etc.) inside this single HTML page.
-// Without it, Clerk redirects to #/factor-two but has no widget mounted
-// to handle that hash, producing an infinite spinner.
+// routing: 'hash' — required for static HTML on Netlify (no server-side routing).
+//   With routing:'path', Clerk tries to navigate to /sign-in which Netlify 404s.
+//   With routing:'hash', Clerk uses #/factor-two etc. as sub-routes within the page.
+//   The hash-strip at the top of boot() clears any stale hashes before Clerk sees them.
 //
-// afterSignInUrl uses only origin+pathname — never query params — to
-// prevent Clerk's redirect params accumulating across multiple logins.
+// afterSignInUrl uses only origin+pathname — never href — to avoid accumulating
+//   Clerk's own query params across redirects.
 function mountSignIn(clerk) {
+  console.log('[mountSignIn] called — switching to auth screen');
   show('auth-screen');
+  console.log('[mountSignIn] auth-screen display:', document.getElementById('auth-screen').style.display);
+
   const el = document.getElementById('clerk-sign-in');
+  console.log('[mountSignIn] clerk-sign-in el:', el, 'dimensions:', el?.offsetWidth, 'x', el?.offsetHeight);
+
   // Unmount any previous instance before mounting again to avoid double-mount
   try { clerk.unmountSignIn(el); } catch (_) {}
+
   clerk.mountSignIn(el, {
-    routing: 'path',
+    routing: 'hash',
     afterSignInUrl: window.location.origin + window.location.pathname,
     afterSignUpUrl: window.location.origin + window.location.pathname,
   });
+  console.log('[mountSignIn] mountSignIn() called on Clerk');
+
+  // Safety fallback: if the widget hasn't rendered any children after 3 seconds,
+  // the Clerk component silently failed (e.g. bad publishable key, network error,
+  // Content-Security-Policy block). Show a visible recovery message.
+  setTimeout(() => {
+    const el2 = document.getElementById('clerk-sign-in');
+    if (el2 && el2.children.length === 0) {
+      console.warn('[mountSignIn] widget empty after 3s — showing fallback');
+      el2.innerHTML =
+        '<div style="background:#fde8e3;border:1px solid #f5c3b7;color:#c43d1a;border-radius:8px;' +
+        'padding:18px 20px;font-size:14px;line-height:1.5;text-align:center">' +
+        '<strong>Sign-in failed to load.</strong><br>' +
+        'Please <a href="" style="color:#c43d1a">refresh the page</a> and try again.<br>' +
+        '<span style="font-size:12px;color:#a03010">If this persists, try a different browser or disable extensions.</span>' +
+        '</div>';
+    }
+  }, 3000);
 }
 
 async function signOut() {
@@ -948,16 +980,20 @@ function waitForClerk(ms) {
 }
 
 async function boot() {
+  console.log('[boot] start — url:', window.location.href);
+
   // Strip any stale Clerk hash sub-route (#/factor-two, #/verify, etc.) from
   // the URL before Clerk initialises. These hashes are left behind by previous
   // failed or partial sign-in flows. If they remain, isClerkHashFlow() mounts
   // the sign-in widget instead of loading the dashboard, and the user loops
   // forever. Stripping them first means Clerk always sees a clean URL.
   if (window.location.hash) {
+    console.log('[boot] stripping hash:', window.location.hash);
     history.replaceState(null, '', window.location.origin + window.location.pathname);
   }
 
   dbg('1: waiting for Clerk SDK... hash=' + (window.location.hash || 'none'));
+  console.log('[boot] step 1: waiting for window.Clerk...');
 
   // Hard 8-second guard: if boot() hasn't called show() by then, something
   // is completely stuck and the user deserves an error, not an infinite spinner.
@@ -968,18 +1004,23 @@ async function boot() {
   try {
     clerk = await waitForClerk(5000);
     dbg('1: Clerk SDK ready', 'ok');
+    console.log('[boot] step 1 OK: window.Clerk =', typeof window.Clerk);
   } catch (e) {
     clearTimeout(guard);
+    console.error('[boot] step 1 FAILED:', e.message);
     fatalError(e.message);
     return;
   }
 
   dbg('2: calling clerk.load()...');
+  console.log('[boot] step 2: calling clerk.load()...');
   try {
     await withTimeout(clerk.load(), 5000, 'clerk.load()');
     dbg('2: clerk.load() done', 'ok');
+    console.log('[boot] step 2 OK: clerk.user =', clerk.user ? clerk.user.id : 'null');
   } catch (e) {
     clearTimeout(guard);
+    console.error('[boot] step 2 FAILED:', e.message);
     fatalError('clerk.load() failed: ' + e.message);
     return;
   }
@@ -988,6 +1029,9 @@ async function boot() {
 
   const email = clerk.user?.primaryEmailAddress?.emailAddress;
   dbg('3: hash="' + window.location.hash + '" user=' + (clerk.user ? 'YES (' + email + ')' : 'NO'));
+  console.log('[boot] step 3: clerk.user:', clerk.user ? 'signed in (' + email + ')' : 'not signed in');
+  console.log('[boot] step 3: window.location.hash:', window.location.hash || '(empty)');
+  console.log('[boot] step 3: isClerkHashFlow():', isClerkHashFlow());
 
   // Case A: Clerk is mid-flow (MFA, email verify, SSO callback etc.)
   // The hash tells us Clerk needs to render an intermediate step.
@@ -995,9 +1039,11 @@ async function boot() {
   // then wait for the listener to fire when sign-in is fully complete.
   if (isClerkHashFlow()) {
     dbg('3: Clerk hash flow — ' + window.location.hash + ' — mounting widget', 'ok');
+    console.log('[boot] → Case A: hash flow, mounting sign-in widget');
     mountSignIn(clerk);
     clerk.addListener(({ user }) => {
       if (user) {
+        console.log('[boot] Case A listener fired — user signed in, loading dashboard');
         dbg('3: hash flow complete — loading dashboard', 'ok');
         loadDashboard(clerk);
       }
@@ -1008,15 +1054,18 @@ async function boot() {
   // Case B: Fully signed in — go straight to dashboard.
   if (clerk.user) {
     dbg('3: signed in — loading dashboard', 'ok');
+    console.log('[boot] → Case B: already signed in, loading dashboard');
     await loadDashboard(clerk);
     return;
   }
 
   // Case C: No session — show the sign-in widget.
   dbg('3: no session — showing sign-in', 'ok');
+  console.log('[boot] → Case C: no session, mounting sign-in widget');
   mountSignIn(clerk);
   clerk.addListener(({ user }) => {
     if (user) {
+      console.log('[boot] Case C listener fired — user signed in, loading dashboard');
       dbg('3: signed in via widget — loading dashboard', 'ok');
       loadDashboard(clerk);
     }
