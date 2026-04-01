@@ -179,7 +179,14 @@ async function requireAuth(req, res, next) {
   if (!token) return res.status(401).json({ error: 'Unauthorised' });
 
   try {
-    await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY });
+    // Race against a 5-second timeout — verifyToken fetches JWKS on first call
+    // and can hang indefinitely if the Clerk CDN is slow or unreachable.
+    await Promise.race([
+      verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY }),
+      new Promise((_, rej) =>
+        setTimeout(() => rej(new Error('verifyToken timed out after 5s')), 5000)
+      ),
+    ]);
     console.log(`[requireAuth] OK — ${req.method} ${req.path}`);
     next();
   } catch (err) {
@@ -762,7 +769,10 @@ app.get('/api/businesses/:businessId/calls', requireAuth, async (req, res) => {
 
 // ─── ROUTE 6: Health check ────────────────────────────────────────────────────
 
-app.get('/health', (req, res) => res.json({ status: 'ok' }));
+app.get('/health',            (req, res) => res.json({ status: 'ok' }));
+// Dashboard pre-flight check — no auth, no rate limiting, just confirms the
+// server is reachable before the dashboard spends 8s waiting on /api/my-business
+app.get('/api/health-check', (req, res) => res.json({ ok: true }));
 
 // ─── ROUTE: Test call ────────────────────────────────────────────────────────
 
@@ -972,28 +982,33 @@ app.post('/api/onboard', async (req, res) => {
 // ─── ROUTE: Get business by email (Clerk dashboard auth) ─────────────────────
 
 app.get('/api/my-business', requireAuth, async (req, res) => {
-  const email = req.headers['x-user-email'];
-  console.log(`[/api/my-business] looking up email: "${maskEmail(email)}"`);
+  try {
+    const email = req.headers['x-user-email'];
+    console.log(`[/api/my-business] looking up email: "${maskEmail(email)}"`);
 
-  if (!email || !email.includes('@')) {
-    console.warn(`[/api/my-business] missing or invalid email header`);
-    return res.status(400).json({ error: 'Missing email' });
+    if (!email || !email.includes('@')) {
+      console.warn(`[/api/my-business] missing or invalid email header`);
+      return res.status(400).json({ error: 'Missing email' });
+    }
+
+    const { data, error } = await supabase
+      .from('businesses')
+      .select('id, name, industry, phone, twilio_number, setup_completed, created_at')
+      .eq('email', email)
+      .single();
+
+    if (error || !data) {
+      console.warn(`[/api/my-business] NOT FOUND for ${maskEmail(email)} | db error: ${error?.message || 'none'}`);
+      return res.status(404).json({
+        error: 'No business found for this email. Please sign up first.',
+      });
+    }
+    console.log(`[/api/my-business] FOUND id: ${data.id} name: "${data.name}"`);
+    res.json(data);
+  } catch (err) {
+    console.error(`[/api/my-business] unhandled error: ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
-
-  const { data, error } = await supabase
-    .from('businesses')
-    .select('id, name, industry, phone, twilio_number, setup_completed, created_at')
-    .eq('email', email)
-    .single();
-
-  if (error || !data) {
-    console.warn(`[/api/my-business] NOT FOUND for ${maskEmail(email)} | db error: ${error?.message || 'none'}`);
-    return res.status(404).json({
-      error: 'No business found for this email. Please sign up first.',
-    });
-  }
-  console.log(`[/api/my-business] FOUND id: ${data.id} name: "${data.name}"`);
-  res.json(data);
 });
 
 // ─── ROUTE: Mark setup as complete (Clerk dashboard auth) ────────────────────
