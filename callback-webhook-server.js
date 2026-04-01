@@ -53,9 +53,14 @@ require('dotenv').config();
 // no useful log. Check first, crash with a clear message if anything is absent.
 const REQUIRED_ENV = [
   'TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_PHONE_NUMBER',
-  'ANTHROPIC_API_KEY', 'SUPABASE_URL', 'SUPABASE_SERVICE_KEY', 'API_SECRET',
+  'ANTHROPIC_API_KEY', 'SUPABASE_URL', 'SUPABASE_SERVICE_KEY',
   'STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID', 'CLERK_SECRET_KEY',
+  // NOTE: API_SECRET removed — requireApiAuth was replaced by Clerk JWT auth
+  // and process.env.API_SECRET is no longer referenced anywhere in the codebase.
+  // Keeping it here would crash the server if it's not set in Railway env vars.
 ];
+// Log all env var names (NOT values) so Railway logs show what is/isn't set
+console.log('[startup] env vars present:', REQUIRED_ENV.filter(k => !!process.env[k]).join(', '));
 const missing = REQUIRED_ENV.filter(k => !process.env[k]);
 if (missing.length > 0) {
   console.error(`STARTUP FAILED — missing required env vars: ${missing.join(', ')}`);
@@ -72,7 +77,14 @@ const cors      = require('cors');
 const Stripe    = require('stripe');
 // Safe to call now — STRIPE_SECRET_KEY is guaranteed to exist
 const stripe    = Stripe(process.env.STRIPE_SECRET_KEY);
-const { verifyToken } = require('@clerk/backend');
+let verifyToken = null;
+try {
+  ({ verifyToken } = require('@clerk/backend'));
+  console.log('[startup] @clerk/backend loaded');
+} catch (err) {
+  console.error('[startup] @clerk/backend FAILED to load:', err.message);
+  // verifyToken remains null — requireAuth will reject all requests with a 503
+}
 
 // ─── App setup ────────────────────────────────────────────────────────────────
 
@@ -103,7 +115,16 @@ app.use(express.json({ limit: '10kb' }));
 // ─── Clients ─────────────────────────────────────────────────────────────────
 
 const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-const anthropic    = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+let anthropic = null;
+try {
+  anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  console.log('[startup] Anthropic client initialised');
+} catch (err) {
+  console.error('[startup] Anthropic client FAILED to initialise:', err.message);
+  // anthropic remains null — routes that use it will fall back to static SMS
+}
+
 const supabase     = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 
 // ─── Industry tone map ────────────────────────────────────────────────────────
@@ -146,6 +167,10 @@ function validateTwilioSignature(req, res, next) {
 // Verifies Clerk session tokens on dashboard API routes.
 
 async function requireAuth(req, res, next) {
+  if (!verifyToken) {
+    console.error('[requireAuth] @clerk/backend not loaded — rejecting request');
+    return res.status(503).json({ error: 'Auth service unavailable' });
+  }
   const header = req.headers['authorization'] || '';
   const token  = header.startsWith('Bearer ') ? header.slice(7) : null;
 
@@ -178,6 +203,114 @@ const isValidIndustry = i  => Object.keys(INDUSTRY_TONES).includes(i);
 const isValidEmail    = e  => typeof e === 'string' && e.length <= 254 && EMAIL_REGEX.test(e);
 const isValidPmId     = id => typeof id === 'string' && PM_REGEX.test(id);
 const safeName        = s  => String(s || '').slice(0, 100).replace(/[<>"']/g, '');
+
+// Privacy-safe log helpers — used during provisioning so no PII hits Railway logs
+const maskPhone = n => (typeof n === 'string' && n.length > 8) ? n.slice(0, 4) + '***' + n.slice(-4) : '***';
+const maskEmail = e => { if (!e?.includes('@')) return '***'; const [l, d] = e.split('@'); return l[0] + '***@' + d; };
+
+// Send a welcome email via Resend (https://resend.com).
+// If RESEND_API_KEY is not set we warn and skip — never block onboarding.
+async function sendWelcomeEmail(toEmail, bizName, twilioNumber) {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) {
+    console.warn('[email] RESEND_API_KEY not set — skipping welcome email');
+    return;
+  }
+
+  const displayNumber = twilioNumber || 'your CallBack AI number';
+
+  // Irish carrier call-forwarding instructions
+  const forwardingInstructions = `
+HOW TO SET UP CALL FORWARDING (takes 2 minutes):
+
+Your CallBack AI number: ${displayNumber}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VODAFONE IRELAND
+Open My Vodafone app → My Plan → Call settings → Divert calls
+→ "When unanswered" → enter ${displayNumber}
+
+THREE IRELAND
+Open My3 app → Account → Call settings → Call divert
+→ "No answer" → enter ${displayNumber}
+
+EIR
+Dial this from your phone: *61*${displayNumber}#
+
+LANDLINE / OTHER NETWORKS
+Dial this from your phone: **61*${displayNumber}#
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Once set up, any missed call will automatically get a CallBack AI text.
+Your dashboard: https://callbackai.netlify.app/callback-dashboard.html
+  `.trim();
+
+  const htmlBody = `
+<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px">
+  <h1 style="color:#16120e;font-size:24px;margin-bottom:4px">You're live on CallBack AI!</h1>
+  <p style="color:#666;margin-bottom:32px">Welcome, ${safeName(bizName)}. Follow the steps below to start recovering missed calls.</p>
+
+  <div style="background:#f5f5f5;border-radius:8px;padding:20px;margin-bottom:24px;text-align:center">
+    <p style="color:#666;font-size:13px;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">Your CallBack AI number</p>
+    <p style="font-size:28px;font-weight:700;color:#ff4d1c;letter-spacing:.05em;margin:0">${displayNumber}</p>
+  </div>
+
+  <h2 style="color:#16120e;font-size:16px;margin-bottom:12px">Set up call forwarding (2 minutes)</h2>
+  <p style="color:#666;font-size:14px;margin-bottom:16px">Forward missed calls from your business number to your CallBack AI number:</p>
+
+  <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:24px">
+    <tr style="background:#16120e;color:#fff">
+      <th style="padding:10px 14px;text-align:left;border-radius:6px 0 0 0">Network</th>
+      <th style="padding:10px 14px;text-align:left;border-radius:0 6px 0 0">Instructions</th>
+    </tr>
+    <tr style="background:#fff;border-bottom:1px solid #eee">
+      <td style="padding:10px 14px;font-weight:600">Vodafone Ireland</td>
+      <td style="padding:10px 14px">My Vodafone app → My Plan → Call settings → Divert calls → <em>When unanswered</em> → enter <strong>${displayNumber}</strong></td>
+    </tr>
+    <tr style="background:#fafafa;border-bottom:1px solid #eee">
+      <td style="padding:10px 14px;font-weight:600">Three Ireland</td>
+      <td style="padding:10px 14px">My3 app → Account → Call settings → Call divert → <em>No answer</em> → enter <strong>${displayNumber}</strong></td>
+    </tr>
+    <tr style="background:#fff;border-bottom:1px solid #eee">
+      <td style="padding:10px 14px;font-weight:600">Eir</td>
+      <td style="padding:10px 14px">Dial from your phone: <code style="background:#f0f0f0;padding:2px 6px;border-radius:3px">*61*${displayNumber}#</code></td>
+    </tr>
+    <tr style="background:#fafafa">
+      <td style="padding:10px 14px;font-weight:600">Landline / Other</td>
+      <td style="padding:10px 14px">Dial from your phone: <code style="background:#f0f0f0;padding:2px 6px;border-radius:3px">**61*${displayNumber}#</code></td>
+    </tr>
+  </table>
+
+  <p style="color:#666;font-size:13px;margin-bottom:24px">Once set up, every missed call will get an automatic CallBack AI text within seconds.</p>
+
+  <a href="https://callbackai.netlify.app/callback-dashboard.html"
+     style="display:inline-block;background:#ff4d1c;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px">
+    Open Your Dashboard
+  </a>
+</div>`;
+
+  try {
+    const r = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: 'CallBack AI <hello@callbackai.app>',
+        to:   [toEmail],
+        subject: "You're live on CallBack AI",
+        html: htmlBody,
+        text: forwardingInstructions,
+      }),
+    });
+    if (!r.ok) {
+      const body = await r.text();
+      console.error(`[email] Resend error ${r.status}:`, body.slice(0, 200));
+    } else {
+      console.log(`[email] welcome email sent to ${maskEmail(toEmail)}`);
+    }
+  } catch (err) {
+    console.error('[email] fetch failed:', err.message);
+  }
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -213,6 +346,7 @@ Write a SHORT, warm SMS reply (max 55 words).
 
 Return ONLY the SMS text. No quotes, no preamble.`;
 
+  if (!anthropic) throw new Error('Anthropic client not initialised');
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514', max_tokens: 120,
     messages: [{ role: 'user', content: prompt }],
@@ -465,6 +599,7 @@ async function processInboundSms(from, rawBody, toNumber) {
   // ── 10. Call Claude — fallback to safe message on any failure ─────────────
   let replyText;
   try {
+    if (!anthropic) throw new Error('Anthropic client not initialised');
     const response = await anthropic.messages.create({
       model:      'claude-haiku-4-5-20251001', // fast + cheap for SMS
       max_tokens: 200,
@@ -653,95 +788,184 @@ app.post('/api/test-call', async (req, res) => {
 });
 
 // ─── ROUTE: Onboard new business ─────────────────────────────────────────────
+// Full self-serve provisioning flow:
+//   1. Idempotency check (return existing record if email already onboarded)
+//   2. Create Stripe customer + subscription
+//   3. Provision a unique Irish Twilio number (+353)
+//   4. Configure the number's voice + SMS webhooks to point at this server
+//   5. Insert Supabase record
+//   6. Send welcome email with the number + forwarding instructions
+//
+// On any failure after Stripe is charged we cancel the subscription, delete
+// the Stripe customer, and release the Twilio number so the client isn't
+// left in a broken state and isn't billed.
+
+const RAILWAY_URL = process.env.RAILWAY_URL || 'https://callbackai-production.up.railway.app';
 
 app.post('/api/onboard', async (req, res) => {
-  const { paymentMethodId, business } = req.body;
+  const { paymentMethodId, business, clerkUserId } = req.body;
 
+  // ── Input validation ─────────────────────────────────────────────────────
   if (!paymentMethodId || !business?.name || !business?.email || !business?.phone) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
-
   if (!isValidPmId(paymentMethodId)) {
     return res.status(400).json({ error: 'Invalid payment method' });
   }
-
   if (!isValidEmail(business.email)) {
     return res.status(400).json({ error: 'Invalid email address' });
   }
-
   if (typeof business.name !== 'string' || business.name.length > 200) {
     return res.status(400).json({ error: 'Invalid business name' });
   }
-
   const cleanPhone = business.phone.replace(/\s/g, '');
   if (!isValidPhone(cleanPhone)) {
     return res.status(400).json({ error: 'Invalid phone number' });
   }
 
-  let customer = null;
-  let subscription = null;
+  const bizName = safeName(business.name);
+  console.log(`[onboard] start | biz: "${bizName}" | email: ${maskEmail(business.email)} | phone: ${maskPhone(cleanPhone)}`);
+
+  // ── Idempotency: if this email is already a client, return the existing record ──
+  // Prevents double-charging if the form is submitted twice.
+  const { data: existing } = await supabase
+    .from('businesses')
+    .select('id, twilio_number, stripe_subscription_id')
+    .eq('email', business.email)
+    .maybeSingle();
+
+  if (existing) {
+    console.log(`[onboard] idempotent — "${bizName}" already exists (id: ${existing.id})`);
+    return res.json({
+      success: true,
+      businessId: existing.id,
+      twilioNumber: existing.twilio_number,
+      alreadyExists: true,
+    });
+  }
+
+  // Resources to clean up if anything goes wrong after they're created
+  let customer      = null;
+  let subscription  = null;
+  let twilioSid     = null; // Twilio IncomingPhoneNumber SID for release on failure
 
   try {
+    // ── Step 1: Stripe ───────────────────────────────────────────────────────
+    console.log(`[onboard] step 1/5: creating Stripe customer for "${bizName}"`);
     customer = await stripe.customers.create({
-      email: business.email,
-      name: safeName(business.name),
-      phone: cleanPhone,
-      payment_method: paymentMethodId,
+      email:            business.email,
+      name:             bizName,
+      phone:            cleanPhone,
+      payment_method:   paymentMethodId,
       invoice_settings: { default_payment_method: paymentMethodId },
-      metadata: { industry: business.industry || 'general' },
+      metadata:         { industry: business.industry || 'general' },
     });
 
     subscription = await stripe.subscriptions.create({
-      customer: customer.id,
-      items: [{ price: process.env.STRIPE_PRICE_ID }],
+      customer:          customer.id,
+      items:             [{ price: process.env.STRIPE_PRICE_ID }],
       trial_period_days: 14,
-      payment_settings: {
-        payment_method_types: ['card'],
-        save_default_payment_method: 'on_subscription',
+      payment_settings:  {
+        payment_method_types:             ['card'],
+        save_default_payment_method:      'on_subscription',
       },
     });
+    console.log(`[onboard] step 1/5: Stripe OK — sub: ${subscription.id}`);
 
+    // ── Step 2: Search for an available Irish number ─────────────────────────
+    console.log(`[onboard] step 2/5: searching for available +353 Twilio number`);
+    const available = await twilioClient
+      .availablePhoneNumbers('IE')
+      .local.list({ limit: 5 });
+
+    if (!available.length) {
+      throw new Error('No Irish (+353) Twilio numbers are currently available. Please try again in a few minutes.');
+    }
+    const selectedNumber = available[0].phoneNumber;
+    console.log(`[onboard] step 2/5: found number ${maskPhone(selectedNumber)}`);
+
+    // ── Step 3: Purchase and configure the number ────────────────────────────
+    console.log(`[onboard] step 3/5: purchasing ${maskPhone(selectedNumber)}`);
+    const purchased = await twilioClient.incomingPhoneNumbers.create({
+      phoneNumber: selectedNumber,
+      voiceUrl:    `${RAILWAY_URL}/webhook/incoming-call`,
+      voiceMethod: 'POST',
+      smsUrl:      `${RAILWAY_URL}/webhook/sms-reply`,
+      smsMethod:   'POST',
+      friendlyName: `CallBackAI — ${bizName}`,
+    });
+    twilioSid = purchased.sid;
+    console.log(`[onboard] step 3/5: Twilio number purchased | sid: ${twilioSid}`);
+
+    // ── Step 4: Create the Supabase record ───────────────────────────────────
+    console.log(`[onboard] step 4/5: inserting Supabase record for "${bizName}"`);
     const { data: newBusiness, error: dbError } = await supabase
       .from('businesses')
       .insert({
-        name: safeName(business.name),
-        industry: isValidIndustry(business.industry) ? business.industry : 'general',
-        phone: cleanPhone,
-        twilio_number: process.env.TWILIO_PHONE_NUMBER,
-        stripe_customer_id: customer.id,
+        name:                  bizName,
+        industry:              isValidIndustry(business.industry) ? business.industry : 'general',
+        phone:                 cleanPhone,
+        email:                 business.email,
+        twilio_number:         selectedNumber,
+        clerk_user_id:         clerkUserId || null,
+        stripe_customer_id:    customer.id,
         stripe_subscription_id: subscription.id,
-        trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-        email: business.email,
+        trial_ends_at:         new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+        setup_completed:       false,
+        status:                'active',
       })
       .select('id')
       .single();
 
     if (dbError) {
-      // Clean up Stripe resources so they don't become orphans
-      await stripe.subscriptions.cancel(subscription.id).catch(() => {});
-      await stripe.customers.del(customer.id).catch(() => {});
-      console.error('Supabase insert error:', dbError.message);
-      return res.status(500).json({ error: 'Failed to create account' });
+      throw new Error(`Supabase insert failed: ${dbError.message}`);
     }
+    console.log(`[onboard] step 4/5: Supabase OK — business id: ${newBusiness.id}`);
 
-    console.log(`New business onboarded: ${safeName(business.name)} (${newBusiness.id})`);
+    // ── Step 5: Send welcome email ───────────────────────────────────────────
+    console.log(`[onboard] step 5/5: sending welcome email to ${maskEmail(business.email)}`);
+    // Fire-and-forget — never let email failure block the success response
+    sendWelcomeEmail(business.email, bizName, selectedNumber).catch(err =>
+      console.error('[onboard] welcome email failed:', err.message)
+    );
 
-    res.json({
-      success: true,
-      businessId: newBusiness.id,
-      trialEndsAt: subscription.trial_end,
+    console.log(`[onboard] complete — "${bizName}" | id: ${newBusiness.id}`);
+    return res.json({
+      success:        true,
+      businessId:     newBusiness.id,
+      twilioNumber:   selectedNumber,
+      trialEndsAt:    subscription.trial_end,
       subscriptionId: subscription.id,
     });
 
   } catch (err) {
-    // Clean up any Stripe resources created before the failure
-    if (subscription) await stripe.subscriptions.cancel(subscription.id).catch(() => {});
-    if (customer && !subscription) await stripe.customers.del(customer.id).catch(() => {});
-    console.error('Onboarding error:', err.message);
+    console.error(`[onboard] FAILED for "${bizName}": ${err.message}`);
+
+    // Clean up in reverse order of creation so no orphaned resources remain
+    if (twilioSid) {
+      await twilioClient.incomingPhoneNumbers(twilioSid).remove().catch(e =>
+        console.error('[onboard] cleanup: could not release Twilio number:', e.message)
+      );
+    }
+    if (subscription) {
+      await stripe.subscriptions.cancel(subscription.id).catch(e =>
+        console.error('[onboard] cleanup: could not cancel subscription:', e.message)
+      );
+    }
+    if (customer && !subscription) {
+      await stripe.customers.del(customer.id).catch(e =>
+        console.error('[onboard] cleanup: could not delete Stripe customer:', e.message)
+      );
+    }
+
     if (err.type === 'StripeCardError') {
       return res.status(400).json({ error: err.message });
     }
-    res.status(500).json({ error: 'Something went wrong. Please try again.' });
+    // Expose a specific message for the "no numbers available" case
+    if (err.message?.startsWith('No Irish')) {
+      return res.status(503).json({ error: err.message });
+    }
+    return res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 });
 
@@ -749,7 +973,7 @@ app.post('/api/onboard', async (req, res) => {
 
 app.get('/api/my-business', requireAuth, async (req, res) => {
   const email = req.headers['x-user-email'];
-  console.log(`[/api/my-business] looking up email: "${email}"`);
+  console.log(`[/api/my-business] looking up email: "${maskEmail(email)}"`);
 
   if (!email || !email.includes('@')) {
     console.warn(`[/api/my-business] missing or invalid email header`);
@@ -758,19 +982,39 @@ app.get('/api/my-business', requireAuth, async (req, res) => {
 
   const { data, error } = await supabase
     .from('businesses')
-    .select('id, name, industry, phone, created_at')
+    .select('id, name, industry, phone, twilio_number, setup_completed, created_at')
     .eq('email', email)
     .single();
 
   if (error || !data) {
-    console.warn(`[/api/my-business] NOT FOUND for email: "${email}" | db error: ${error?.message || 'none'}`);
+    console.warn(`[/api/my-business] NOT FOUND for ${maskEmail(email)} | db error: ${error?.message || 'none'}`);
     return res.status(404).json({
       error: 'No business found for this email. Please sign up first.',
     });
   }
-  console.log(`[/api/my-business] FOUND business id: ${data.id} name: "${data.name}" for email: "${email}"`);
-
+  console.log(`[/api/my-business] FOUND id: ${data.id} name: "${data.name}"`);
   res.json(data);
+});
+
+// ─── ROUTE: Mark setup as complete (Clerk dashboard auth) ────────────────────
+// Called when the client clicks "I've set up call forwarding" on the setup banner.
+
+app.post('/api/my-business/setup-complete', requireAuth, async (req, res) => {
+  const email = req.headers['x-user-email'];
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ error: 'Missing email' });
+  }
+  const { error } = await supabase
+    .from('businesses')
+    .update({ setup_completed: true })
+    .eq('email', email);
+
+  if (error) {
+    console.error(`[setup-complete] DB error for ${maskEmail(email)}:`, error.message);
+    return res.status(500).json({ error: 'Failed to update' });
+  }
+  console.log(`[setup-complete] marked done for ${maskEmail(email)}`);
+  res.json({ success: true });
 });
 
 // ─── Catch-all 404 ────────────────────────────────────────────────────────────
