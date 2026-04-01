@@ -59,10 +59,13 @@ body {
 }
 
 /* The Clerk widget mounts into this div. Without explicit dimensions the widget
-   renders into a 0×0 box and appears blank even though it mounted successfully. */
+   renders into a 0×0 box and appears blank even though it mounted successfully.
+   width:100% + max-width lets it shrink on mobile while staying centred. */
 #clerk-sign-in {
-  min-width: 400px;
-  min-height: 300px;
+  min-width: 320px;
+  min-height: 400px;
+  width: 100%;
+  max-width: 480px;
 }
 
 /* ── Dashboard ── */
