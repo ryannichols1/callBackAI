@@ -492,33 +492,19 @@ body {
   line-height: 1.5;
 }
 
-/* ── DEBUG: step log shown on loading screen ── */
+/* ── DEBUG: fixed overlay — visible on every screen ── */
 #debug-panel {
-  margin-top: 20px;
-  background: #111;
-  border-radius: 8px;
-  padding: 14px 16px;
-  width: 500px;
-  max-width: 92vw;
-  font-family: 'Courier New', monospace;
-  font-size: 12px;
-  color: #ccc;
-  max-height: 260px;
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  background: black;
+  color: lime;
+  font-family: monospace;
+  font-size: 14px;
+  padding: 10px;
+  z-index: 99999;
+  max-height: 50vh;
   overflow-y: auto;
-  text-align: left;
 }
-#debug-panel .dbg-header {
-  font-size: 10px;
-  color: #555;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  margin-bottom: 8px;
-  display: flex;
-  justify-content: space-between;
-}
-.dbg-line { margin-bottom: 3px; line-height: 1.4; }
-.dbg-line.ok  { color: #5ddb8a; }
-.dbg-line.err { color: #ff6b6b; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -526,17 +512,13 @@ body {
 <!-- Fatal error overlay (DEBUG) -->
 <div id="fatal-error"></div>
 
+<!-- DEBUG: fixed overlay — stays visible across all screens -->
+<div id="debug-panel"></div>
+
 <!-- Loading -->
 <div id="loading-screen">
   <div style="display:flex;flex-direction:column;align-items:center;padding:32px">
     <div class="spinner" id="boot-spinner"></div>
-    <div id="debug-panel">
-      <div class="dbg-header">
-        <span>Debug Log</span>
-        <span id="dbg-time">0.0s</span>
-      </div>
-      <div id="debug-lines"></div>
-    </div>
   </div>
 </div>
 
@@ -666,27 +648,18 @@ body {
 const API = 'https://callbackai-production.up.railway.app';
 const _t0  = Date.now();
 
-// ── Tiny debug log (visible on screen + console) ──────────────────────────────
-function dbg(msg, type) {
-  const s = ((Date.now() - _t0) / 1000).toFixed(1);
-  const timeEl = document.getElementById('dbg-time');
-  if (timeEl) timeEl.textContent = s + 's';
-  const lines = document.getElementById('debug-lines');
-  if (lines) {
-    const d = document.createElement('div');
-    d.className = 'dbg-line' + (type ? ' ' + type : '');
-    d.textContent = '[' + s + 's] ' + msg;
-    lines.appendChild(d);
-    lines.scrollTop = lines.scrollHeight;
-  }
-  console.log('[' + s + 's] ' + msg);
+// ── Debug log — fixed overlay, always visible regardless of current screen ────
+function dbg(msg) {
+  const p = document.getElementById('debug-panel');
+  if (p) p.innerHTML += '<div>' + new Date().toISOString().slice(11,19) + ' ' + msg + '</div>';
+  console.log(msg);
 }
 
 // Show a permanent red bar at the top of the page AND stop the spinner.
 // Nothing should spin forever — every code path must call this or show().
 function fatalError(msg) {
   document.getElementById('boot-spinner').style.display = 'none';
-  dbg('FATAL: ' + msg, 'err');
+  dbg('FATAL: ' + msg);
   const el = document.getElementById('fatal-error');
   el.textContent = 'Error: ' + msg;
   el.style.display = 'block';
@@ -706,54 +679,18 @@ function show(id) {
   document.getElementById('dashboard').style.display      = id === 'dashboard'      ? 'block' : 'none';
 }
 
-// Show sign-in widget — used on first load, 401, and mid-flow MFA steps.
-//
-// routing: 'hash' — required for static HTML on Netlify (no server-side routing).
-//   With routing:'path', Clerk tries to navigate to /sign-in which Netlify 404s.
-//   With routing:'hash', Clerk uses #/factor-two etc. as sub-routes within the page.
-//   The hash-strip at the top of boot() clears any stale hashes before Clerk sees them.
-//
-// afterSignInUrl uses only origin+pathname — never href — to avoid accumulating
-//   Clerk's own query params across redirects.
-function mountSignIn(clerk) {
-  console.log('[mountSignIn] called — switching to auth screen');
-  show('auth-screen');
-  console.log('[mountSignIn] auth-screen display:', document.getElementById('auth-screen').style.display);
-
-  const el = document.getElementById('clerk-sign-in');
-  console.log('[mountSignIn] clerk-sign-in el:', el, 'dimensions:', el?.offsetWidth, 'x', el?.offsetHeight);
-
-  // Unmount any previous instance before mounting again to avoid double-mount
-  try { clerk.unmountSignIn(el); } catch (_) {}
-
-  clerk.mountSignIn(el, {
-    routing: 'hash',
-    afterSignInUrl: window.location.origin + window.location.pathname,
-    afterSignUpUrl: window.location.origin + window.location.pathname,
-  });
-  console.log('[mountSignIn] mountSignIn() called on Clerk');
-
-  // Safety fallback: if the widget hasn't rendered any children after 3 seconds,
-  // the Clerk component silently failed (e.g. bad publishable key, network error,
-  // Content-Security-Policy block). Show a visible recovery message.
-  setTimeout(() => {
-    const el2 = document.getElementById('clerk-sign-in');
-    if (el2 && el2.children.length === 0) {
-      console.warn('[mountSignIn] widget empty after 3s — showing fallback');
-      el2.innerHTML =
-        '<div style="background:#fde8e3;border:1px solid #f5c3b7;color:#c43d1a;border-radius:8px;' +
-        'padding:18px 20px;font-size:14px;line-height:1.5;text-align:center">' +
-        '<strong>Sign-in failed to load.</strong><br>' +
-        'Please <a href="" style="color:#c43d1a">refresh the page</a> and try again.<br>' +
-        '<span style="font-size:12px;color:#a03010">If this persists, try a different browser or disable extensions.</span>' +
-        '</div>';
-    }
-  }, 3000);
+// Redirect to Clerk's hosted sign-in page.
+// The embedded widget (mountSignIn) fails to render on static Netlify pages.
+// The hosted page always works — after sign-in Clerk redirects back here with a session.
+function redirectToSignIn() {
+  const returnUrl = encodeURIComponent(window.location.origin + window.location.pathname);
+  dbg('redirecting to Clerk hosted sign-in...');
+  window.location.href = 'https://unified-crawdad-61.clerk.accounts.dev/sign-in?redirect_url=' + returnUrl;
 }
 
 async function signOut() {
   await window.Clerk.signOut();
-  mountSignIn(window.Clerk);
+  redirectToSignIn();
 }
 
 // ── Dashboard data loader ─────────────────────────────────────────────────────
@@ -790,16 +727,17 @@ async function loadDashboard(clerk) {
   }
 
   // Step C0: health-check — confirm server is reachable before spending 5s on auth
-  dbg('C0: GET /api/health-check...');
+  dbg('C0: GET /health...');
   try {
-    const hc = await withTimeout(
-      fetch(API + '/api/health-check'), 3000, 'health-check');
-    dbg('C0: server reachable — HTTP ' + hc.status, 'ok');
+    const healthRes = await fetch(API + '/health');
+    if (!healthRes.ok) {
+      throw new Error('HTTP ' + healthRes.status);
+    }
+    dbg('C0: server reachable', 'ok');
   } catch (e) {
     dbg('C0: server unreachable — ' + e.message, 'err');
     document.getElementById('error-area').innerHTML =
-      '<div class="error-banner">Cannot reach server — it may be starting up. ' +
-      'Please wait 30 seconds and <a href="">refresh the page</a>.</div>';
+      '<div class="error-banner">Server is offline — please wait 30 seconds and <a href="">refresh the page</a>.</div>';
     document.getElementById('callList').innerHTML =
       '<div class="empty-state">Server offline — refresh to retry.</div>';
     return;
@@ -817,11 +755,8 @@ async function loadDashboard(clerk) {
     dbg('C: HTTP ' + r.status);
 
     if (r.status === 401) {
-      dbg('C: 401 — session rejected, re-mounting sign-in', 'err');
-      mountSignIn(clerk);
-      clerk.addListener(({ user }) => {
-        if (user) { dbg('re-login: user detected', 'ok'); loadDashboard(clerk); }
-      });
+      dbg('C: 401 — session rejected, redirecting to sign-in');
+      redirectToSignIn();
       return;
     }
     if (r.status === 404) {
@@ -838,7 +773,8 @@ async function loadDashboard(clerk) {
       throw new Error(msg);
     }
     biz = await r.json();
-    dbg('C: business = "' + biz.name + '" id=' + biz.id, 'ok');
+    dbg('C: body = ' + JSON.stringify(biz));
+    dbg('C: business = "' + (biz.name || biz.business_name || '?') + '" id=' + biz.id, 'ok');
   } catch (e) {
     dbg('C: FAILED — ' + e.message, 'err');
     // Distinguish timeout from network-down from server error
@@ -989,20 +925,6 @@ async function markConverted(callId, btn, token) {
 // ── Boot sequence ─────────────────────────────────────────────────────────────
 // Step 1: Wait for the async Clerk CDN script to define window.Clerk
 // Step 2: Call clerk.load() which reads the session cookie
-// Step 3: Three cases (see comments inside boot())
-//
-// Hash routing: Clerk uses hash sub-routes (#/factor-two, #/verify-email
-// etc.) for MFA and verification steps when routing:'hash' is set.
-// We detect these on every page load and mount the widget instead of
-// trying to load the dashboard, which would spin forever.
-
-const CLERK_HASH_ROUTES = ['/factor-two', '/verify', '/reset-password', '/sso-callback'];
-
-function isClerkHashFlow() {
-  const hash = window.location.hash;
-  return CLERK_HASH_ROUTES.some(r => hash.includes(r));
-}
-
 function waitForClerk(ms) {
   return new Promise((resolve, reject) => {
     if (window.Clerk) return resolve(window.Clerk);
@@ -1017,23 +939,13 @@ function waitForClerk(ms) {
 async function boot() {
   console.log('[boot] start — url:', window.location.href);
 
-  // Strip any stale Clerk hash sub-route (#/factor-two, #/verify, etc.) from
-  // the URL before Clerk initialises. These hashes are left behind by previous
-  // failed or partial sign-in flows. If they remain, isClerkHashFlow() mounts
-  // the sign-in widget instead of loading the dashboard, and the user loops
-  // forever. Stripping them first means Clerk always sees a clean URL.
-  if (window.location.hash) {
-    console.log('[boot] stripping hash:', window.location.hash);
-    history.replaceState(null, '', window.location.origin + window.location.pathname);
-  }
-
-  dbg('1: waiting for Clerk SDK... hash=' + (window.location.hash || 'none'));
+  dbg('1: waiting for Clerk SDK...');
   console.log('[boot] step 1: waiting for window.Clerk...');
 
-  // Hard 8-second guard: if boot() hasn't called show() by then, something
-  // is completely stuck and the user deserves an error, not an infinite spinner.
+  // Hard 15-second guard: clerk.load() on a redirect callback can take 10s+.
+  // If boot() still hasn't called show() after 15s, something is truly stuck.
   const guard = setTimeout(() =>
-    fatalError('Timed out after 8s. Last step: see debug log above.'), 8000);
+    fatalError('Timed out after 15s. Last step: see debug log above.'), 15000);
 
   let clerk;
   try {
@@ -1049,9 +961,13 @@ async function boot() {
 
   dbg('2: calling clerk.load()...');
   console.log('[boot] step 2: calling clerk.load()...');
+  // No timeout here — when Clerk redirects back after hosted sign-in it appends
+  // auth tokens to the URL and load() must make extra network calls to exchange
+  // them. That can take >5s on a slow connection. The outer 8s guard still fires
+  // if load() hangs completely.
   try {
-    await withTimeout(clerk.load(), 5000, 'clerk.load()');
-    dbg('2: clerk.load() done', 'ok');
+    await clerk.load();
+    dbg('2: clerk.load() done');
     console.log('[boot] step 2 OK: clerk.user =', clerk.user ? clerk.user.id : 'null');
   } catch (e) {
     clearTimeout(guard);
@@ -1063,48 +979,23 @@ async function boot() {
   clearTimeout(guard); // boot succeeded — data loading has its own timeouts
 
   const email = clerk.user?.primaryEmailAddress?.emailAddress;
-  dbg('3: hash="' + window.location.hash + '" user=' + (clerk.user ? 'YES (' + email + ')' : 'NO'));
+  dbg('3: user=' + (clerk.user ? 'YES (' + email + ')' : 'NO'));
   console.log('[boot] step 3: clerk.user:', clerk.user ? 'signed in (' + email + ')' : 'not signed in');
-  console.log('[boot] step 3: window.location.hash:', window.location.hash || '(empty)');
-  console.log('[boot] step 3: isClerkHashFlow():', isClerkHashFlow());
 
-  // Case A: Clerk is mid-flow (MFA, email verify, SSO callback etc.)
-  // The hash tells us Clerk needs to render an intermediate step.
-  // Mount the widget with routing:'hash' so it handles the sub-route,
-  // then wait for the listener to fire when sign-in is fully complete.
-  if (isClerkHashFlow()) {
-    dbg('3: Clerk hash flow — ' + window.location.hash + ' — mounting widget', 'ok');
-    console.log('[boot] → Case A: hash flow, mounting sign-in widget');
-    mountSignIn(clerk);
-    clerk.addListener(({ user }) => {
-      if (user) {
-        console.log('[boot] Case A listener fired — user signed in, loading dashboard');
-        dbg('3: hash flow complete — loading dashboard', 'ok');
-        loadDashboard(clerk);
-      }
-    });
-    return;
-  }
-
-  // Case B: Fully signed in — go straight to dashboard.
+  // Case A: Signed in — load dashboard.
   if (clerk.user) {
-    dbg('3: signed in — loading dashboard', 'ok');
-    console.log('[boot] → Case B: already signed in, loading dashboard');
+    dbg('3: signed in — loading dashboard');
+    console.log('[boot] → Case A: already signed in, loading dashboard');
     await loadDashboard(clerk);
     return;
   }
 
-  // Case C: No session — show the sign-in widget.
-  dbg('3: no session — showing sign-in', 'ok');
-  console.log('[boot] → Case C: no session, mounting sign-in widget');
-  mountSignIn(clerk);
-  clerk.addListener(({ user }) => {
-    if (user) {
-      console.log('[boot] Case C listener fired — user signed in, loading dashboard');
-      dbg('3: signed in via widget — loading dashboard', 'ok');
-      loadDashboard(clerk);
-    }
-  });
+  // Case B: No session — redirect to Clerk's hosted sign-in page.
+  // The embedded mountSignIn() widget fails to render on static Netlify pages.
+  // The hosted page always works; Clerk redirects back here with a valid session.
+  dbg('3: no session — redirecting to Clerk sign-in');
+  console.log('[boot] → Case B: no session, redirecting to hosted sign-in');
+  redirectToSignIn();
 }
 
 document.addEventListener('DOMContentLoaded', boot);

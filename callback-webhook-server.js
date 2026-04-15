@@ -769,7 +769,7 @@ app.get('/api/businesses/:businessId/calls', requireAuth, async (req, res) => {
 
 // ─── ROUTE 6: Health check ────────────────────────────────────────────────────
 
-app.get('/health',            (req, res) => res.json({ status: 'ok' }));
+app.get('/health',            (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
 // Dashboard pre-flight check — no auth, no rate limiting, just confirms the
 // server is reachable before the dashboard spends 8s waiting on /api/my-business
 app.get('/api/health-check', (req, res) => res.json({ ok: true }));
@@ -984,30 +984,27 @@ app.post('/api/onboard', async (req, res) => {
 app.get('/api/my-business', requireAuth, async (req, res) => {
   try {
     const email = req.headers['x-user-email'];
-    console.log(`[/api/my-business] looking up email: "${maskEmail(email)}"`);
+    console.log('[/api/my-business] lookup:', email ? email.slice(0,3) + '***' : 'NO EMAIL');
 
-    if (!email || !email.includes('@')) {
-      console.warn(`[/api/my-business] missing or invalid email header`);
-      return res.status(400).json({ error: 'Missing email' });
-    }
+    if (!email) return res.status(400).json({ error: 'No email header' });
 
     const { data, error } = await supabase
       .from('businesses')
-      .select('id, name, industry, phone, twilio_number, setup_completed, created_at')
-      .eq('email', email)
+      .select('*')
+      .eq('owner_email', email)
       .single();
 
     if (error || !data) {
-      console.warn(`[/api/my-business] NOT FOUND for ${maskEmail(email)} | db error: ${error?.message || 'none'}`);
-      return res.status(404).json({
-        error: 'No business found for this email. Please sign up first.',
-      });
+      console.log('[/api/my-business] NOT FOUND for email');
+      return res.status(404).json({ error: 'Business not found' });
     }
-    console.log(`[/api/my-business] FOUND id: ${data.id} name: "${data.name}"`);
-    res.json(data);
+
+    console.log('[/api/my-business] FOUND:', data.id, data.business_name);
+    return res.json(data);
+
   } catch (err) {
-    console.error(`[/api/my-business] unhandled error: ${err.message}`);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('[/api/my-business] CRASH:', err.message);
+    return res.status(500).json({ error: 'Server error: ' + err.message });
   }
 });
 
