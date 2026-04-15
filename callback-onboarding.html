@@ -917,24 +917,30 @@ let clerkInstance = null;
 let clerkSignUpObj = null;
 
 // ── Wait for Clerk script to finish loading ──────────────────────────────────
-function waitForClerk() {
-  return new Promise((resolve) => {
+function waitForClerk(ms = 8000) {
+  return new Promise((resolve, reject) => {
     if (window.Clerk) return resolve(window.Clerk);
+    const t = setTimeout(() =>
+      reject(new Error('Clerk SDK did not load after ' + (ms/1000) + 's — check network or CSP')), ms);
     const interval = setInterval(() => {
-      if (window.Clerk) { clearInterval(interval); resolve(window.Clerk); }
+      if (window.Clerk) { clearTimeout(t); clearInterval(interval); resolve(window.Clerk); }
     }, 50);
   });
 }
 
-// Pre-load Clerk in the background so it's ready by the time the user
-// reaches step 2. Errors here are non-fatal — we handle them in step2CreateAccount.
+// Pre-load Clerk in the background so it's ready by the time the user reaches step 2.
+// Errors are logged visibly — if this fails, step2CreateAccount will retry and surface the error.
 document.addEventListener('DOMContentLoaded', async () => {
   try {
+    console.log('[Clerk] pre-load: waiting for SDK...');
     const clerk = await waitForClerk();
+    console.log('[Clerk] pre-load: SDK ready, calling load()...');
     await clerk.load();
     clerkInstance = clerk;
+    console.log('[Clerk] pre-load: done. client.signUp id=', clerk.client?.signUp?.id || 'none', 'status=', clerk.client?.signUp?.status || 'none');
   } catch (e) {
-    console.warn('Clerk pre-load failed:', e);
+    console.error('[Clerk] pre-load FAILED:', e.message, e);
+    // clerkInstance stays null — step2CreateAccount will retry
   }
 });
 
@@ -1033,20 +1039,32 @@ async function step2CreateAccount() {
 
   try {
     // Use pre-loaded instance or load now if pre-load failed
-    const clerk = clerkInstance || await (async () => {
+    let clerk = clerkInstance;
+    if (!clerk) {
+      console.log('[Clerk] step2: clerkInstance null — loading now...');
       const c = await waitForClerk();
       await c.load();
       clerkInstance = c;
-      return c;
-    })();
+      clerk = c;
+      console.log('[Clerk] step2: fallback load done');
+    }
 
-    clerkSignUpObj = clerk.client.signUp;
-    await clerkSignUpObj.create({
+    console.log('[Clerk] step2: clerk.client=', !!clerk.client, 'signUp.id=', clerk.client?.signUp?.id || 'none', 'signUp.status=', clerk.client?.signUp?.status || 'none');
+
+    // Capture the return value of create() — it returns the fresh server-confirmed
+    // SignUp resource with the correct id. The pre-create reference on clerk.client.signUp
+    // may be stale (abandoned attempt from a previous session), which causes
+    // "No sign up attempt was found" when prepareEmailAddressVerification is called on it.
+    console.log('[Clerk] step2: calling signUp.create() for', biz.email);
+    clerkSignUpObj = await clerk.client.signUp.create({
       emailAddress: biz.email,
       password: pw,
     });
+    console.log('[Clerk] step2: create() done. signUp.id=', clerkSignUpObj.id, 'status=', clerkSignUpObj.status);
 
+    console.log('[Clerk] step2: calling prepareEmailAddressVerification...');
     await clerkSignUpObj.prepareEmailAddressVerification({ strategy: 'email_code' });
+    console.log('[Clerk] step2: verification email sent');
 
     // Swap to verification UI
     document.getElementById('signup-fields').style.display = 'none';
@@ -1054,6 +1072,8 @@ async function step2CreateAccount() {
     document.getElementById('clerkEmailSent').textContent = biz.email;
 
   } catch (e) {
+    console.error('[Clerk] step2 FAILED:', e.message, e);
+    if (e.errors?.length) console.error('[Clerk] errors:', JSON.stringify(e.errors));
     let msg = 'Something went wrong. Please try again.';
     if (e.errors?.length) {
       const code = e.errors[0].code;
