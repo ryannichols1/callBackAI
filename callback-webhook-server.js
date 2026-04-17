@@ -68,6 +68,7 @@ if (missing.length > 0) {
 }
 
 const express   = require('express');
+const path      = require('path');
 const twilio    = require('twilio');
 const Anthropic = require('@anthropic-ai/sdk');
 const { createClient } = require('@supabase/supabase-js');
@@ -96,10 +97,28 @@ app.use(helmet());
 app.disable('x-powered-by');
 
 app.use(cors({
-  origin: ['https://callbackai.netlify.app', 'http://localhost:3000'],
+  origin: [
+    'https://callbackai.netlify.app',
+    'https://callbackai-production.up.railway.app',
+    'http://localhost:3000',
+  ],
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-User-Email'],
 }));
+
+// ─── Static file serving ──────────────────────────────────────────────────────
+// Serve the frontend HTML/CSS/JS files from the project root.
+// Must come BEFORE rate-limiters and body parsers so asset requests
+// (fonts, scripts, etc.) are handled immediately without hitting API middleware.
+app.use(express.static(__dirname, {
+  // Don't serve the server file itself or .env
+  dotfiles: 'deny',
+}));
+
+// Explicit root → landing page
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 // Rate limiting — prevents SMS bombing and brute force
 const webhookLimiter  = rateLimit({ windowMs: 60_000,      max: 60 });
