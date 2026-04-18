@@ -6,8 +6,8 @@
 <title>CallBack AI — Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;700;900&family=Epilogue:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script async crossorigin="anonymous"
-  data-clerk-publishable-key="pk_test_dW5pZmllZC1jcmF3ZGFkLTYxLmNsZXJrLmFjY291bnRzLmRldiQ"
-  src="https://unified-crawdad-61.clerk.accounts.dev/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
+  data-clerk-publishable-key="pk_live_Y2xlcmsuY2FsbGJhY2thaS5pZSQ"
+  src="https://clerk.callbackai.ie/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
   type="text/javascript"></script>
 <style>
 :root {
@@ -687,7 +687,7 @@ function show(id) {
 function redirectToSignIn() {
   const returnUrl = encodeURIComponent(window.location.origin + window.location.pathname);
   dbg('redirecting to Clerk hosted sign-in...');
-  window.location.href = 'https://unified-crawdad-61.clerk.accounts.dev/sign-in?redirect_url=' + returnUrl;
+  window.location.href = 'https://accounts.callbackai.ie/sign-in?redirect_url=' + returnUrl;
 }
 
 async function signOut() {
