@@ -1049,6 +1049,14 @@ async function step2CreateAccount() {
       console.log('[Clerk] step2: fallback load done');
     }
 
+    if (!clerk || !clerk.client) {
+      err.textContent = 'Authentication not ready. Please refresh and try again.';
+      err.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = 'Create Account →';
+      return;
+    }
+
     console.log('[Clerk] step2: clerk.client=', !!clerk.client, 'signUp.id=', clerk.client?.signUp?.id || 'none', 'signUp.status=', clerk.client?.signUp?.status || 'none');
 
     // Capture the return value of create() — it returns the fresh server-confirmed
