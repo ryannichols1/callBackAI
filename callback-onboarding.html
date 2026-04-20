@@ -913,8 +913,8 @@ nav {
 let step = 1;
 let biz = {};
 let stripe, card;
-let clerkInstance = null;
 let clerkSignUpObj = null;
+let _clerkReadyPromise = null;
 
 // ── Wait for Clerk script to finish loading ──────────────────────────────────
 function waitForClerk(ms = 8000) {
@@ -928,20 +928,25 @@ function waitForClerk(ms = 8000) {
   });
 }
 
-// Pre-load Clerk in the background so it's ready by the time the user reaches step 2.
-// Errors are logged visibly — if this fails, step2CreateAccount will retry and surface the error.
-document.addEventListener('DOMContentLoaded', async () => {
-  try {
-    console.log('[Clerk] pre-load: waiting for SDK...');
-    const clerk = await waitForClerk();
-    console.log('[Clerk] pre-load: SDK ready, calling load()...');
-    await clerk.load();
-    clerkInstance = clerk;
-    console.log('[Clerk] pre-load: done. client.signUp id=', clerk.client?.signUp?.id || 'none', 'status=', clerk.client?.signUp?.status || 'none');
-  } catch (e) {
-    console.error('[Clerk] pre-load FAILED:', e.message, e);
-    // clerkInstance stays null — step2CreateAccount will retry
+// Single shared promise — ensures clerk.load() is called exactly once.
+// If it were called a second time (e.g. from the step2 fallback while the
+// pre-load was still running) Clerk resets the client state and the signup
+// attempt created with the first client can no longer be found, producing
+// "No sign up attempt was found" on prepareEmailAddressVerification().
+function getClerk() {
+  if (!_clerkReadyPromise) {
+    _clerkReadyPromise = waitForClerk(8000).then(async c => {
+      await c.load();
+      console.log('[Clerk] ready — signUp:', c.client?.signUp?.id || 'none');
+      return c;
+    });
   }
+  return _clerkReadyPromise;
+}
+
+// Kick off the load immediately so it's done by the time the user reaches step 2.
+document.addEventListener('DOMContentLoaded', () => {
+  getClerk().catch(e => console.error('[Clerk] pre-load FAILED:', e.message));
 });
 
 // ── Init Stripe ───────────────────────────────────────────────────────────────
@@ -1037,40 +1042,33 @@ async function step2CreateAccount() {
   btn.disabled = true;
   btn.textContent = 'Creating account...';
 
+  let clerk;
   try {
-    // Use pre-loaded instance or load now if pre-load failed
-    let clerk = clerkInstance;
-    if (!clerk) {
-      console.log('[Clerk] step2: clerkInstance null — loading now...');
-      const c = await waitForClerk();
-      await c.load();
-      clerkInstance = c;
-      clerk = c;
-      console.log('[Clerk] step2: fallback load done');
-    }
+    clerk = await getClerk();
+  } catch (e) {
+    err.textContent = 'Could not load authentication. Please refresh and try again.';
+    err.classList.add('show');
+    btn.disabled = false;
+    btn.textContent = 'Create Account →';
+    return;
+  }
 
-    if (!clerk || !clerk.client) {
-      err.textContent = 'Authentication not ready. Please refresh and try again.';
-      err.classList.add('show');
-      btn.disabled = false;
-      btn.textContent = 'Create Account →';
-      return;
-    }
+  if (!clerk.client) {
+    err.textContent = 'Authentication not ready. Please refresh and try again.';
+    err.classList.add('show');
+    btn.disabled = false;
+    btn.textContent = 'Create Account →';
+    return;
+  }
 
-    console.log('[Clerk] step2: clerk.client=', !!clerk.client, 'signUp.id=', clerk.client?.signUp?.id || 'none', 'signUp.status=', clerk.client?.signUp?.status || 'none');
-
-    // Capture the return value of create() — it returns the fresh server-confirmed
-    // SignUp resource with the correct id. The pre-create reference on clerk.client.signUp
-    // may be stale (abandoned attempt from a previous session), which causes
-    // "No sign up attempt was found" when prepareEmailAddressVerification is called on it.
-    console.log('[Clerk] step2: calling signUp.create() for', biz.email);
+  try {
+    console.log('[Clerk] step2: calling signUp.create()...');
     clerkSignUpObj = await clerk.client.signUp.create({
       emailAddress: biz.email,
       password: pw,
     });
-    console.log('[Clerk] step2: create() done. signUp.id=', clerkSignUpObj.id, 'status=', clerkSignUpObj.status);
+    console.log('[Clerk] step2: create() done. id=', clerkSignUpObj.id, 'status=', clerkSignUpObj.status);
 
-    console.log('[Clerk] step2: calling prepareEmailAddressVerification...');
     await clerkSignUpObj.prepareEmailAddressVerification({ strategy: 'email_code' });
     console.log('[Clerk] step2: verification email sent');
 
