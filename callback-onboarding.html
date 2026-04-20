@@ -857,6 +857,15 @@ nav {
       <div class="panel-title">Create your account</div>
       <p class="panel-sub">This is how you'll log into your CallBack AI dashboard.</p>
 
+      <!-- Shown when user is already signed in or email already has an account -->
+      <div id="already-signed-in" style="display:none">
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:20px;line-height:1.7;font-size:14px;color:var(--ink);">
+          This email already has an account.<br>
+          <a href="/callback-dashboard.html" style="color:var(--accent);font-weight:700;text-decoration:none;">Sign in to your dashboard →</a>
+        </div>
+        <button class="btn-ghost" onclick="goTo(1)" style="margin-top:16px">← Use a different email</button>
+      </div>
+
       <!-- Password fields — hidden once verification is sent -->
       <div id="signup-fields">
         <div class="field">
@@ -1098,6 +1107,13 @@ function togglePw(inputId, btn) {
   btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
 }
 
+// Show "already have an account" message in place of the signup form
+function showAlreadySignedIn() {
+  document.getElementById('signup-fields').style.display = 'none';
+  document.getElementById('verify-section').style.display = 'none';
+  document.getElementById('already-signed-in').style.display = 'block';
+}
+
 // ── Wait for Clerk script to finish loading ──────────────────────────────────
 function waitForClerk(ms = 8000) {
   return new Promise((resolve, reject) => {
@@ -1204,6 +1220,15 @@ function step1Next() {
   // Pre-fill the email display on step 2
   document.getElementById('clerkEmailDisplay').value = biz.email;
   goTo(2);
+
+  // Async check: if Clerk already has a signed-in session, show the "already have account" UI.
+  // By the time the user fills in step 1, the pre-load promise should already be resolved.
+  getClerk().then(clerk => {
+    if (clerk.user) {
+      console.log('[Clerk] user already signed in as', clerk.user.primaryEmailAddress?.emailAddress, '— showing already-signed-in notice');
+      showAlreadySignedIn();
+    }
+  }).catch(() => {});
 }
 
 // ── Step 2: Create Clerk account ──────────────────────────────────────────────
@@ -1249,6 +1274,15 @@ async function step2CreateAccount() {
     return;
   }
 
+  // If a user session already exists, skip account creation and show a helpful message
+  if (clerk.user) {
+    console.log('[Clerk] step2: user already signed in —', clerk.user.primaryEmailAddress?.emailAddress);
+    showAlreadySignedIn();
+    btn.disabled = false;
+    btn.textContent = 'Create Account →';
+    return;
+  }
+
   try {
     console.log('[Clerk] step2: calling signUp.create()...');
     clerkSignUpObj = await clerk.client.signUp.create({
@@ -1279,7 +1313,9 @@ async function step2CreateAccount() {
     if (e.errors?.length) {
       const code = e.errors[0].code;
       if (code === 'form_identifier_exists') {
-        msg = 'This email is already registered. Please <a href="callback-dashboard.html">sign in to your dashboard</a> instead.';
+        msg = 'This email already has an account. <a href="/callback-dashboard.html" style="color:var(--accent);font-weight:700;text-decoration:none;">Sign in to your dashboard →</a>';
+        showAlreadySignedIn();
+        return; // the already-signed-in div is now visible — no need to show the error box too
       } else if (code === 'form_password_pwned') {
         msg = 'That password has appeared in a data breach. Please choose a different password.';
       } else {
@@ -1313,9 +1349,16 @@ async function step2VerifyCode() {
     const result = await window._clerkSignUp.attemptEmailAddressVerification({ code });
 
     if (result.status === 'complete') {
-      // Reload ensures the Clerk session is fully established before Stripe loads
-      await window._clerkSignUp.reload();
-      goTo(3); // proceed to payment
+      console.log('[Clerk] verification complete — advancing to payment step');
+      // reload() syncs the Clerk session — if it fails it's non-fatal; always proceed to step 3
+      try {
+        await window._clerkSignUp.reload();
+        console.log('[Clerk] reload() done');
+      } catch (reloadErr) {
+        console.warn('[Clerk] reload() after verification failed (non-fatal):', reloadErr.message);
+      }
+      console.log('[Clerk] calling goTo(3)');
+      goTo(3);
     } else {
       err.textContent = 'Verification incomplete. Please try again.';
       err.classList.add('show');
