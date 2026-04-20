@@ -98,7 +98,8 @@ app.disable('x-powered-by');
 
 app.use(cors({
   origin: [
-    'https://callbackai.netlify.app',
+    'https://callbackai.ie',
+    'https://www.callbackai.ie',
     'https://callbackai-production.up.railway.app',
     'http://localhost:3000',
   ],
@@ -268,7 +269,7 @@ Dial this from your phone: **61*${displayNumber}#
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Once set up, any missed call will automatically get a CallBack AI text.
-Your dashboard: https://callbackai.netlify.app/callback-dashboard.html
+Your dashboard: https://callbackai.ie/callback-dashboard.html
   `.trim();
 
   const htmlBody = `
@@ -309,7 +310,7 @@ Your dashboard: https://callbackai.netlify.app/callback-dashboard.html
 
   <p style="color:#666;font-size:13px;margin-bottom:24px">Once set up, every missed call will get an automatic CallBack AI text within seconds.</p>
 
-  <a href="https://callbackai.netlify.app/callback-dashboard.html"
+  <a href="https://callbackai.ie/callback-dashboard.html"
      style="display:inline-block;background:#ff4d1c;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px">
     Open Your Dashboard
   </a>
