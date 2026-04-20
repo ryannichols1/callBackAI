@@ -456,14 +456,6 @@ nav {
 .next-row:last-child { border-bottom: none; }
 .next-icon { font-size: 15px; flex-shrink: 0; }
 
-/* ── Already-signed-in notice ─────────────────────────────────────────────── */
-/* (shown only when form_identifier_exists error fires) */
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
-}
-
 /* ── Responsive ───────────────────────────────────────────────────────────── */
 @media (max-width: 600px) {
   nav { padding: 16px 20px; }
@@ -655,15 +647,6 @@ nav {
     <div class="panel" id="panel-2">
       <div class="panel-title">Create your account</div>
       <p class="panel-sub">This is how you'll log into your CallBack AI dashboard.</p>
-
-      <!-- Shown only when Clerk returns form_identifier_exists -->
-      <div id="already-signed-in" style="display:none">
-        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:20px;line-height:1.7;font-size:14px;color:var(--ink);">
-          This email already has an account.<br>
-          <a href="/callback-dashboard.html" style="color:var(--accent);font-weight:700;text-decoration:none;">Sign in to your dashboard →</a>
-        </div>
-        <button class="btn-ghost" onclick="goTo(1)">← Use a different email</button>
-      </div>
 
       <!-- Password fields — hidden once verification is sent -->
       <div id="signup-fields">
@@ -887,13 +870,6 @@ function togglePw(inputId, btn) {
   btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
 }
 
-// Show "already have an account" — only called when form_identifier_exists fires
-function showAlreadySignedIn() {
-  document.getElementById('signup-fields').style.display = 'none';
-  document.getElementById('verify-section').style.display = 'none';
-  document.getElementById('already-signed-in').style.display = 'block';
-}
-
 // ── Clerk loading ─────────────────────────────────────────────────────────────
 function waitForClerk(ms = 8000) {
   return new Promise((resolve, reject) => {
@@ -923,12 +899,8 @@ function getClerk() {
 // sign out silently so onboarding always starts fresh.
 document.addEventListener('DOMContentLoaded', () => {
   getClerk().then(async clerk => {
-    if (clerk.user) {
-      console.log('[Clerk] existing session found — signing out for fresh onboarding');
-      await clerk.signOut();
-      console.log('[Clerk] signed out');
-    }
-  }).catch(e => console.error('[Clerk] pre-load FAILED:', e.message));
+    try { if (clerk.user) await clerk.signOut(); } catch(e) {}
+  });
 });
 
 // ── Init Stripe ───────────────────────────────────────────────────────────────
@@ -1061,10 +1033,6 @@ async function step2CreateAccount() {
     return;
   }
 
-  // No clerk.user check here — the DOMContentLoaded handler already signed out
-  // any existing session. If somehow a session crept back in (e.g. very fast re-auth),
-  // Clerk's own API will return form_identifier_exists which we handle below.
-
   try {
     console.log('[Clerk] step2: calling signUp.create()...');
     clerkSignUpObj = await clerk.client.signUp.create({
@@ -1093,8 +1061,8 @@ async function step2CreateAccount() {
     if (e.errors?.length) {
       const code = e.errors[0].code;
       if (code === 'form_identifier_exists') {
-        // Email already registered — show the friendly "already have account" UI
-        showAlreadySignedIn();
+        err.innerHTML = 'This email is already registered. <a href="/callback-dashboard.html" style="color:var(--accent);font-weight:700;">Sign in here →</a>';
+        err.classList.add('show');
         btn.disabled = false;
         btn.textContent = 'Create Account →';
         return;
