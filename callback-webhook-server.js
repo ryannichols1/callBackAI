@@ -1028,7 +1028,7 @@ app.get('/api/my-business', requireAuth, async (req, res) => {
     const { data, error } = await supabase
       .from('businesses')
       .select('*')
-      .eq('owner_email', email)
+      .eq('email', email)
       .single();
 
     if (error || !data) {
