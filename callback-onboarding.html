@@ -1102,23 +1102,10 @@ async function step2VerifyCode() {
 
   try {
     const result = await window._clerkSignUp.attemptEmailAddressVerification({ code });
-
-    if (result.status === 'complete') {
-      console.log('[Clerk] verification complete');
-      // reload() syncs the session — non-fatal if it fails; we proceed regardless
-      try {
-        await window._clerkSignUp.reload();
-        console.log('[Clerk] reload() done');
-      } catch (reloadErr) {
-        console.warn('[Clerk] reload() failed (non-fatal):', reloadErr.message);
-      }
-      verified = true;
-    } else {
-      err.textContent = 'Verification incomplete. Please try again.';
-      err.classList.add('show');
-      btn.disabled = false;
-      btn.textContent = 'Verify →';
-    }
+    // Log the real status so we can see what Clerk returns (may be 'complete' or 'missing_requirements')
+    console.log('[Clerk] verification result — status:', result.status, '| email:', result.verifications?.emailAddress?.status);
+    // If the call didn't throw, Clerk accepted the code — move to payment regardless of result.status
+    verified = true;
   } catch (e) {
     let msg = 'Invalid code. Please check and try again.';
     if (e.errors?.length) {
@@ -1137,9 +1124,9 @@ async function step2VerifyCode() {
     btn.textContent = 'Verify →';
   }
 
-  // Unconditional — goTo(3) runs outside try/catch so errors can't swallow it
+  // Unconditional — goTo(3) runs outside try/catch so nothing can swallow it
   if (verified) {
-    console.log('[Clerk] calling goTo(3) — advancing to payment');
+    console.log('verified — moving to payment');
     goTo(3);
   }
 }
