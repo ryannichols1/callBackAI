@@ -37,11 +37,11 @@ process.on('unhandledRejection', (err) => console.error('UNHANDLED REJECTION:', 
 // → new deployment starts → same thing → crash loop.
 process.on('SIGTERM', () => {
   console.log('[shutdown] SIGTERM received — closing server gracefully');
-  // Force-exit after 10 s if server.close() hasn't drained all connections.
+  // Force-exit after 5 s if server.close() hasn't drained all connections.
   const forceExit = setTimeout(() => {
-    console.warn('[shutdown] server.close() did not finish in 10 s — forcing exit');
+    console.warn('[shutdown] server.close() did not finish in 5 s — forcing exit');
     process.exit(0);
-  }, 10_000);
+  }, 5_000);
   // Don't let this timer keep the event loop alive on its own.
   if (forceExit.unref) forceExit.unref();
 
@@ -808,6 +808,7 @@ app.get('/api/businesses/:businessId/calls', requireAuth, async (req, res) => {
 // ─── ROUTE 6: Health check ────────────────────────────────────────────────────
 
 app.get('/health',            (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
+app.get('/healthz',           (req, res) => res.status(200).send('ok'));
 // Dashboard pre-flight check — no auth, no rate limiting, just confirms the
 // server is reachable before the dashboard spends 8s waiting on /api/my-business
 app.get('/api/health-check', (req, res) => res.json({ ok: true }));
@@ -1079,8 +1080,8 @@ app.use((err, req, res, next) => {
 // ─── Start ────────────────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT || 3000;
-console.log(`[startup] binding to port ${PORT}...`);
-const server = app.listen(PORT, () => {
+console.log(`[startup] binding to 0.0.0.0:${PORT}...`);
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`\nCallBack AI on port ${PORT}`);
   console.log(`   ✓ Twilio signature validation (active)`);
   console.log(`   ✓ API Bearer token auth`);
