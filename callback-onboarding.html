@@ -33,14 +33,14 @@ body {
   min-height: 100vh;
 }
 
-/* Nav */
+/* ── Nav ──────────────────────────────────────────────────────────────────── */
 nav {
-  padding: 20px 40px;
+  padding: 18px 40px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--border);
-  background: var(--bg);
+  background: var(--surface);
 }
 
 .nav-logo {
@@ -58,205 +58,48 @@ nav {
   font-size: 13px;
   color: var(--muted);
   text-decoration: none;
-  display: flex;
-  align-items: center;
-  gap: 6px;
   transition: color 0.2s;
 }
 
 .nav-back:hover { color: var(--ink); }
 
-/* Layout */
-.page {
-  display: grid;
-  grid-template-columns: 1fr 480px 1fr;
-  min-height: calc(100vh - 61px);
+/* ── Trust strip ──────────────────────────────────────────────────────────── */
+.trust-strip {
+  text-align: center;
+  padding: 9px 20px;
+  font-size: 12.5px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  letter-spacing: 0.01em;
 }
 
-.left-panel {
-  background: var(--ink);
-  padding: 60px 48px;
+/* ── Layout ───────────────────────────────────────────────────────────────── */
+.onboard-wrap {
   display: flex;
-  flex-direction: column;
+  align-items: flex-start;
   justify-content: center;
-  grid-column: 1;
+  padding: 48px 20px 72px;
+  min-height: calc(100vh - 104px);
 }
 
-.form-panel {
-  padding: 48px 40px;
+.onboard-card {
   background: var(--surface);
-  border-left: 1px solid var(--border);
-  border-right: 1px solid var(--border);
-  grid-column: 2;
-  overflow: hidden; /* prevent buttons overflowing the panel border */
+  border-radius: 16px;
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.04),
+    0 4px 16px rgba(0,0,0,0.06),
+    0 16px 48px rgba(0,0,0,0.06);
+  padding: 44px 48px;
+  width: 100%;
+  max-width: 520px;
 }
 
-.right-panel {
-  background: var(--ink);
-  padding: 60px 48px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  grid-column: 3;
-}
-
-/* Left panel content */
-.left-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 100px;
-  padding: 6px 14px;
-  font-size: 12px;
-  color: rgba(255,255,255,0.7);
-  margin-bottom: 28px;
-}
-
-.left-dot {
-  width: 6px; height: 6px;
-  background: var(--accent2);
-  border-radius: 50%;
-  animation: pulse 2s infinite;
-}
-
-.left-title {
-  font-family: 'Fraunces', serif;
-  font-weight: 900;
-  font-size: clamp(28px, 3vw, 42px);
-  line-height: 1.08;
-  letter-spacing: -0.03em;
-  color: #fff;
-  margin-bottom: 20px;
-}
-
-.left-title em {
-  font-style: italic;
-  color: var(--accent2);
-}
-
-.left-sub {
-  font-size: 15px;
-  color: rgba(255,255,255,0.5);
-  line-height: 1.7;
-  margin-bottom: 40px;
-}
-
-.proof-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.proof-icon {
-  width: 32px; height: 32px;
-  background: rgba(255,255,255,0.06);
-  border-radius: 8px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 14px;
-  flex-shrink: 0;
-  margin-top: 1px;
-}
-
-.proof-text { font-size: 13.5px; color: rgba(255,255,255,0.6); line-height: 1.5; }
-.proof-text strong { color: #fff; display: block; margin-bottom: 2px; font-size: 14px; }
-
-/* Right panel */
-.right-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 100px;
-  padding: 6px 14px;
-  font-size: 12px;
-  color: rgba(255,255,255,0.7);
-  margin-bottom: 28px;
-  align-self: flex-start;
-}
-
-.right-title {
-  font-family: 'Fraunces', serif;
-  font-weight: 900;
-  font-size: clamp(22px, 2.2vw, 34px);
-  line-height: 1.1;
-  letter-spacing: -0.03em;
-  color: #fff;
-  margin-bottom: 32px;
-}
-
-.right-title em { font-style: italic; color: var(--accent2); }
-
-.right-bullets {
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 36px;
-}
-
-.right-bullet {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 14px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
-}
-
-.right-bullet:last-child { border-bottom: none; }
-
-.bullet-check {
-  width: 24px; height: 24px;
-  background: rgba(255,180,0,0.12);
-  border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 11px;
-  color: var(--accent2);
-  font-weight: 800;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.bullet-text { font-size: 13.5px; color: rgba(255,255,255,0.55); line-height: 1.5; }
-.bullet-text strong { color: #fff; display: block; margin-bottom: 2px; font-size: 14px; }
-
-.testimonial-card {
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 14px;
-  padding: 22px 24px;
-  margin-top: auto;
-}
-
-.testimonial-quote {
-  font-family: 'Fraunces', serif;
-  font-style: italic;
-  font-size: 15.5px;
-  color: rgba(255,255,255,0.85);
-  line-height: 1.65;
-  margin-bottom: 14px;
-}
-
-.testimonial-stars {
-  color: var(--accent2);
-  font-size: 13px;
-  margin-bottom: 10px;
-  letter-spacing: 2px;
-}
-
-.testimonial-author {
-  font-size: 13px;
-  color: rgba(255,255,255,0.4);
-  font-weight: 600;
-}
-
-/* Progress steps */
+/* ── Progress — 4 steps ───────────────────────────────────────────────────── */
 .progress {
   display: flex;
   align-items: center;
-  gap: 0;
-  margin-bottom: 36px;
+  margin-bottom: 40px;
 }
 
 .prog-step {
@@ -266,14 +109,14 @@ nav {
   font-size: 11px;
   font-weight: 600;
   color: var(--muted);
-  position: relative;
+  white-space: nowrap;
 }
 
 .prog-step.active { color: var(--ink); }
-.prog-step.done { color: var(--green); }
+.prog-step.done   { color: var(--green); }
 
 .prog-num {
-  width: 26px; height: 26px;
+  width: 24px; height: 24px;
   border-radius: 50%;
   border: 1.5px solid var(--border);
   display: flex; align-items: center; justify-content: center;
@@ -284,43 +127,33 @@ nav {
   flex-shrink: 0;
 }
 
-.prog-step.active .prog-num {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: #fff;
-}
-
-.prog-step.done .prog-num {
-  background: var(--green);
-  border-color: var(--green);
-  color: #fff;
-}
+.prog-step.active .prog-num { background: var(--ink); border-color: var(--ink); color: #fff; }
+.prog-step.done   .prog-num { background: var(--green); border-color: var(--green); color: #fff; }
 
 .prog-line {
   flex: 1;
-  height: 1px;
+  height: 1.5px;
   background: var(--border);
-  margin: 0 6px;
-  min-width: 12px;
+  margin: 0 8px;
+  min-width: 16px;
+  transition: background 0.4s;
 }
 
-/* Form panels */
-.panel {
-  display: none;
-  animation: slideIn 0.3s ease;
-}
+.prog-line.done { background: var(--green); }
 
+/* ── Panels ───────────────────────────────────────────────────────────────── */
+.panel { display: none; animation: slideIn 0.28s ease; }
 .panel.active { display: block; }
 
 @keyframes slideIn {
-  from { opacity: 0; transform: translateX(12px); }
-  to { opacity: 1; transform: translateX(0); }
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .panel-title {
   font-family: 'Fraunces', serif;
   font-weight: 900;
-  font-size: 28px;
+  font-size: 26px;
   letter-spacing: -0.03em;
   margin-bottom: 6px;
 }
@@ -332,15 +165,15 @@ nav {
   line-height: 1.6;
 }
 
-/* Fields */
-.field { margin-bottom: 18px; }
+/* ── Fields ───────────────────────────────────────────────────────────────── */
+.field { margin-bottom: 16px; }
 
 .field label {
   display: block;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
   color: var(--muted);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   margin-bottom: 7px;
 }
@@ -351,7 +184,7 @@ nav {
   background: var(--bg);
   border: 1.5px solid var(--border);
   border-radius: 10px;
-  padding: 13px 16px;
+  padding: 12px 14px;
   color: var(--ink);
   font-family: 'Epilogue', sans-serif;
   font-size: 15px;
@@ -366,14 +199,10 @@ nav {
   box-shadow: 0 0 0 3px rgba(22,18,14,0.06);
 }
 
-.field input:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
+.field input:disabled { opacity: 0.5; cursor: not-allowed; }
 .field input::placeholder { color: var(--muted); opacity: 0.6; }
 
-/* Phone field — country code selector + number input combined */
+/* Phone field */
 .phone-row {
   display: flex;
   border: 1.5px solid var(--border);
@@ -390,7 +219,7 @@ nav {
   border: none;
   border-right: 1.5px solid var(--border);
   background: transparent;
-  padding: 13px 8px 13px 12px;
+  padding: 12px 8px 12px 12px;
   font-family: 'Epilogue', sans-serif;
   font-size: 14px;
   color: var(--ink);
@@ -406,7 +235,7 @@ nav {
   background: transparent !important;
   border-radius: 0 !important;
   box-shadow: none !important;
-  padding: 13px 14px;
+  padding: 12px 14px;
 }
 
 /* Password visibility toggle */
@@ -437,41 +266,40 @@ nav {
   background: var(--green-soft);
   border: 1px solid rgba(13,122,74,0.15);
   border-radius: 10px;
-  padding: 12px 16px;
-  margin-bottom: 22px;
-  font-size: 13.5px;
+  padding: 12px 14px;
+  margin-bottom: 20px;
+  font-size: 13px;
   color: var(--green);
   line-height: 1.5;
 }
 
-/* Stripe wrap */
+/* Stripe */
 .stripe-field {
   background: var(--bg);
   border: 1.5px solid var(--border);
   border-radius: 10px;
-  padding: 14px 16px;
-  margin-bottom: 18px;
+  padding: 13px 14px;
+  margin-bottom: 16px;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
-
 .stripe-field.focused {
   border-color: var(--ink);
   box-shadow: 0 0 0 3px rgba(22,18,14,0.06);
 }
-
 .stripe-label {
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
   color: var(--muted);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   margin-bottom: 10px;
 }
 
-/* Buttons */
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
 .btn-primary {
+  display: block;
   width: 100%;
-  padding: 15px;
+  padding: 14px;
   background: var(--accent);
   color: #fff;
   border: none;
@@ -481,15 +309,14 @@ nav {
   font-size: 15px;
   cursor: pointer;
   transition: all 0.2s;
-  margin-top: 4px;
+  margin-top: 6px;
+  text-align: center;
 }
-
 .btn-primary:hover {
   background: #d93a0e;
   transform: translateY(-1px);
   box-shadow: 0 6px 20px rgba(255,77,28,0.3);
 }
-
 .btn-primary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -498,8 +325,9 @@ nav {
 }
 
 .btn-ghost {
+  display: block;
   width: 100%;
-  padding: 13px;
+  padding: 12px;
   background: transparent;
   color: var(--muted);
   border: 1.5px solid var(--border);
@@ -510,11 +338,11 @@ nav {
   cursor: pointer;
   transition: all 0.2s;
   margin-top: 10px;
+  text-align: center;
 }
-
 .btn-ghost:hover { border-color: var(--ink); color: var(--ink); }
 
-/* Error */
+/* ── Error ────────────────────────────────────────────────────────────────── */
 .error-msg {
   background: #fef2f2;
   border: 1px solid #fecaca;
@@ -526,7 +354,6 @@ nav {
   display: none;
   line-height: 1.5;
 }
-
 .error-msg.show { display: block; }
 
 /* Fine print */
@@ -538,7 +365,7 @@ nav {
   line-height: 1.6;
 }
 
-/* Verification box */
+/* ── Verification box ─────────────────────────────────────────────────────── */
 .verify-box {
   background: var(--bg);
   border: 1.5px solid var(--border);
@@ -546,119 +373,39 @@ nav {
   padding: 20px;
   margin-top: 4px;
 }
-
-.verify-box-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--ink);
-  margin-bottom: 6px;
-}
-
-.verify-box-sub {
-  font-size: 13px;
-  color: var(--muted);
-  line-height: 1.6;
-  margin-bottom: 16px;
-}
-
+.verify-box-title { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+.verify-box-sub { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 16px; }
 .verify-box-sub strong { color: var(--ink); }
+.resend-link { font-size: 12px; color: var(--muted); text-align: center; margin-top: 12px; }
+.resend-link a { color: var(--ink); text-decoration: underline; cursor: pointer; }
 
-.resend-link {
-  font-size: 12px;
-  color: var(--muted);
-  text-align: center;
-  margin-top: 12px;
-}
-
-.resend-link a {
-  color: var(--ink);
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-/* Wizard */
+/* ── Wizard ───────────────────────────────────────────────────────────────── */
 .wizard-item {
   display: flex;
   gap: 16px;
-  padding: 18px 0;
+  padding: 16px 0;
   border-bottom: 1px solid var(--border);
 }
-
 .wizard-item:last-child { border-bottom: none; }
 
 .wiz-num {
-  width: 30px; height: 30px;
+  width: 28px; height: 28px;
   border-radius: 50%;
   border: 1.5px solid var(--border);
   display: flex; align-items: center; justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 12px; font-weight: 700;
   flex-shrink: 0;
   color: var(--muted);
   transition: all 0.3s;
 }
-
-.wizard-item.active .wiz-num {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: #fff;
-}
-
-.wizard-item.done .wiz-num {
-  background: var(--green);
-  border-color: var(--green);
-  color: #fff;
-}
+.wizard-item.active .wiz-num { background: var(--ink); border-color: var(--ink); color: #fff; }
+.wizard-item.done   .wiz-num { background: var(--green); border-color: var(--green); color: #fff; }
 
 .wiz-body { flex: 1; }
-
-.wiz-title {
-  font-weight: 600;
-  font-size: 14px;
-  margin-bottom: 4px;
-  color: var(--muted);
-}
-
+.wiz-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; color: var(--muted); }
 .wizard-item.active .wiz-title,
-.wizard-item.done .wiz-title { color: var(--ink); }
-
-.wiz-desc {
-  font-size: 13px;
-  color: var(--muted);
-  line-height: 1.6;
-}
-
-.code-box {
-  display: flex;
-  align-items: center;
-  background: var(--bg);
-  border: 1.5px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 14px;
-  margin-top: 10px;
-  font-size: 13px;
-  font-family: 'Courier New', monospace;
-  color: var(--ink);
-  letter-spacing: 0.02em;
-}
-
-.copy-btn {
-  margin-left: auto;
-  padding: 4px 12px;
-  background: var(--ink);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: 'Epilogue', sans-serif;
-  transition: all 0.15s;
-  white-space: nowrap;
-}
-
-.copy-btn:hover { background: #333; }
-.copy-btn.copied { background: var(--green); }
+.wizard-item.done   .wiz-title { color: var(--ink); }
+.wiz-desc { font-size: 13px; color: var(--muted); line-height: 1.6; }
 
 .verify-btn {
   margin-top: 10px;
@@ -673,65 +420,57 @@ nav {
   font-family: 'Epilogue', sans-serif;
   transition: all 0.2s;
 }
-
 .verify-btn:hover { background: #d93a0e; }
-.verify-btn.done { background: var(--green); }
+.verify-btn.done  { background: var(--green); }
 
-/* Success */
-.success-wrap { text-align: center; padding: 20px 0 8px; }
+/* ── Success ──────────────────────────────────────────────────────────────── */
+.success-wrap { text-align: center; padding: 8px 0; }
 
 .success-circle {
-  width: 72px; height: 72px;
+  width: 64px; height: 64px;
   background: var(--green-soft);
   border: 1.5px solid rgba(13,122,74,0.2);
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 32px;
-  margin: 0 auto 24px;
+  font-size: 28px;
+  margin: 0 auto 20px;
 }
 
 .what-next {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 20px;
+  padding: 18px;
   text-align: left;
-  margin: 24px 0;
+  margin: 20px 0;
 }
-
 .what-next-title {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 14px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 12px;
 }
-
 .next-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 8px 0;
-  font-size: 14px;
-  color: var(--ink);
-  line-height: 1.5;
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 7px 0; font-size: 13.5px; color: var(--ink); line-height: 1.5;
   border-bottom: 1px solid var(--border);
 }
-
 .next-row:last-child { border-bottom: none; }
-.next-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.next-icon { font-size: 15px; flex-shrink: 0; }
+
+/* ── Already-signed-in notice ─────────────────────────────────────────────── */
+/* (shown only when form_identifier_exists error fires) */
 
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
 }
 
-@media (max-width: 900px) {
-  .page { grid-template-columns: 1fr; }
-  .left-panel { display: none; }
-  .form-panel { border: none; padding: 32px 24px; }
-  .right-panel { display: none; }
+/* ── Responsive ───────────────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  nav { padding: 16px 20px; }
+  .trust-strip { font-size: 11px; }
+  .onboard-wrap { padding: 20px 12px 48px; }
+  .onboard-card { padding: 28px 20px; border-radius: 12px; }
+  .prog-step span { display: none; }
 }
 </style>
 </head>
@@ -739,68 +478,35 @@ nav {
 
 <nav>
   <a href="index.html" class="nav-logo">CallBack<span>.</span>ai</a>
-  <a href="index.html" class="nav-back">← Back to site</a>
+  <a href="index.html" class="nav-back">← Back</a>
 </nav>
 
-<div class="page">
+<div class="trust-strip">
+  ⚡ Setup in 3 mins &nbsp;·&nbsp; 🇮🇪 Irish number included &nbsp;·&nbsp; Cancel anytime
+</div>
 
-  <!-- Left panel -->
-  <div class="left-panel">
-    <div class="left-badge">
-      <span class="left-dot"></span>
-      14-day free trial — no commitment
-    </div>
+<div class="onboard-wrap">
+  <div class="onboard-card">
 
-    <div class="left-title">
-      Never lose a<br>customer to a<br><em>missed call</em> again.
-    </div>
-
-    <p class="left-sub">Set up takes 5 minutes. Most businesses recover the cost in their first week.</p>
-
-    <div class="proof-item">
-      <div class="proof-icon">→</div>
-      <div class="proof-text">
-        <strong>Instant auto-reply</strong>
-        Every missed call gets an AI text back within seconds
-      </div>
-    </div>
-
-    <div class="proof-item">
-      <div class="proof-icon">→</div>
-      <div class="proof-text">
-        <strong>Cancel anytime</strong>
-        No contracts, no setup fees, no risk
-      </div>
-    </div>
-  </div>
-
-  <!-- Form panel -->
-  <div class="form-panel">
-
-    <!-- Progress — 5 steps -->
+    <!-- Progress — 4 steps -->
     <div class="progress" id="progress">
       <div class="prog-step active" id="ps-1">
         <div class="prog-num" id="pn-1">1</div>
         <span>Details</span>
       </div>
-      <div class="prog-line"></div>
+      <div class="prog-line" id="pl-1"></div>
       <div class="prog-step" id="ps-2">
         <div class="prog-num" id="pn-2">2</div>
         <span>Account</span>
       </div>
-      <div class="prog-line"></div>
+      <div class="prog-line" id="pl-2"></div>
       <div class="prog-step" id="ps-3">
         <div class="prog-num" id="pn-3">3</div>
         <span>Payment</span>
       </div>
-      <div class="prog-line"></div>
+      <div class="prog-line" id="pl-3"></div>
       <div class="prog-step" id="ps-4">
         <div class="prog-num" id="pn-4">4</div>
-        <span>Setup</span>
-      </div>
-      <div class="prog-line"></div>
-      <div class="prog-step" id="ps-5">
-        <div class="prog-num" id="pn-5">5</div>
         <span>Done</span>
       </div>
     </div>
@@ -950,13 +656,13 @@ nav {
       <div class="panel-title">Create your account</div>
       <p class="panel-sub">This is how you'll log into your CallBack AI dashboard.</p>
 
-      <!-- Shown when user is already signed in or email already has an account -->
+      <!-- Shown only when Clerk returns form_identifier_exists -->
       <div id="already-signed-in" style="display:none">
         <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:20px;line-height:1.7;font-size:14px;color:var(--ink);">
           This email already has an account.<br>
           <a href="/callback-dashboard.html" style="color:var(--accent);font-weight:700;text-decoration:none;">Sign in to your dashboard →</a>
         </div>
-        <button class="btn-ghost" onclick="goTo(1)" style="margin-top:16px">← Use a different email</button>
+        <button class="btn-ghost" onclick="goTo(1)">← Use a different email</button>
       </div>
 
       <!-- Password fields — hidden once verification is sent -->
@@ -1063,9 +769,7 @@ nav {
           <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px">
 
             <details style="background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:12px 16px;cursor:pointer">
-              <summary style="font-weight:600;font-size:14px;list-style:none">
-                Vodafone Ireland
-              </summary>
+              <summary style="font-weight:600;font-size:14px;list-style:none">Vodafone Ireland</summary>
               <p style="font-size:13px;color:var(--muted);margin-top:8px;line-height:1.7">
                 Call <strong>1907</strong> from your Vodafone number and say:<br>
                 <em>"I need to activate call forwarding when unanswered to +14783303514"</em><br>
@@ -1074,9 +778,7 @@ nav {
             </details>
 
             <details style="background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:12px 16px;cursor:pointer">
-              <summary style="font-weight:600;font-size:14px;list-style:none">
-                Three Ireland
-              </summary>
+              <summary style="font-weight:600;font-size:14px;list-style:none">Three Ireland</summary>
               <p style="font-size:13px;color:var(--muted);margin-top:8px;line-height:1.7">
                 Open your Phone app keypad and dial:<br>
                 <strong>*61*+14783303514*11*20#</strong><br>
@@ -1085,22 +787,17 @@ nav {
             </details>
 
             <details style="background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:12px 16px;cursor:pointer">
-              <summary style="font-weight:600;font-size:14px;list-style:none">
-                Eir / 48 / Other
-              </summary>
+              <summary style="font-weight:600;font-size:14px;list-style:none">Eir / 48 / Other</summary>
               <p style="font-size:13px;color:var(--muted);margin-top:8px;line-height:1.7">
                 Open your Phone app keypad and dial:<br>
                 <strong>**61*+14783303514**20#</strong><br>
-                Then press the green call button. Or call your
-                network and ask them to set up call forwarding
-                when unanswered to +14783303514.
+                Then press the green call button. Or call your network and ask them to set up
+                call forwarding when unanswered to +14783303514.
               </p>
             </details>
 
             <details style="background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:12px 16px;cursor:pointer">
-              <summary style="font-weight:600;font-size:14px;list-style:none">
-                Android (any network)
-              </summary>
+              <summary style="font-weight:600;font-size:14px;list-style:none">Android (any network)</summary>
               <p style="font-size:13px;color:var(--muted);margin-top:8px;line-height:1.7">
                 Phone app → Settings (three dots) →
                 Supplementary services → Call forwarding →
@@ -1109,19 +806,15 @@ nav {
             </details>
 
             <details style="background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:12px 16px;cursor:pointer">
-              <summary style="font-weight:600;font-size:14px;list-style:none">
-                Landline (Eir / Virgin / Sky)
-              </summary>
+              <summary style="font-weight:600;font-size:14px;list-style:none">Landline (Eir / Virgin / Sky)</summary>
               <p style="font-size:13px;color:var(--muted);margin-top:8px;line-height:1.7">
                 <strong>Option 1 — Dial from your landline:</strong><br>
                 Pick up your landline and dial:<br>
                 <strong>*61*+14783303514#</strong><br>
                 You'll hear a confirmation tone.<br><br>
                 <strong>Option 2 — Call your provider:</strong><br>
-                Call Eir on <strong>1901</strong>, Virgin on <strong>1908</strong>
-                or your provider and say:<br>
-                <em>"I need to set up call forwarding when unanswered
-                to +14783303514"</em><br>
+                Call Eir on <strong>1901</strong>, Virgin on <strong>1908</strong> or your provider and say:<br>
+                <em>"I need to set up call forwarding when unanswered to +14783303514"</em><br>
                 Takes 2 minutes and is usually free.
               </p>
             </details>
@@ -1135,14 +828,10 @@ nav {
         <div class="wiz-body">
           <div class="wiz-title">Test it's working</div>
           <div class="wiz-desc">
-            We'll test it for you automatically. Click the button
-            below and we'll call your number right now — if
-            forwarding is set up correctly you'll get a text
-            back within 14 seconds.
+            We'll test it for you automatically. Click the button below and we'll call your
+            number right now — if forwarding is set up correctly you'll get a text back within 14 seconds.
           </div>
-          <button class="verify-btn" id="verifyBtn" onclick="testCall()">
-            Call my number now →
-          </button>
+          <button class="verify-btn" id="verifyBtn" onclick="testCall()">Call my number now →</button>
         </div>
       </div>
 
@@ -1176,57 +865,8 @@ nav {
       </div>
     </div>
 
-  </div>
-
-  <!-- Right panel — trust / social proof -->
-  <div class="right-panel">
-    <div class="right-badge">
-      <span class="left-dot"></span>
-      Over 200 businesses trust CallBack AI
-    </div>
-
-    <div class="right-title">
-      You're <em>3 minutes</em> away from never missing a lead again
-    </div>
-
-    <div class="right-bullets">
-      <div class="right-bullet">
-        <div class="bullet-check">✓</div>
-        <div class="bullet-text">
-          <strong>AI texts back within 14 seconds</strong>
-          While competitors go to voicemail, you're already in conversation
-        </div>
-      </div>
-      <div class="right-bullet">
-        <div class="bullet-check">✓</div>
-        <div class="bullet-text">
-          <strong>78% of customers reply</strong>
-          Higher response rate than any callback attempt
-        </div>
-      </div>
-      <div class="right-bullet">
-        <div class="bullet-check">✓</div>
-        <div class="bullet-text">
-          <strong>Dedicated Irish number included</strong>
-          A real local number, not a shortcode
-        </div>
-      </div>
-      <div class="right-bullet">
-        <div class="bullet-check">✓</div>
-        <div class="bullet-text">
-          <strong>Cancel anytime</strong>
-          No contracts, no setup fees, no lock-in
-        </div>
-      </div>
-    </div>
-
-    <div class="testimonial-card">
-      <div class="testimonial-stars">★★★★★</div>
-      <div class="testimonial-quote">"Set it up in 5 minutes. Got my first reply the same day. It's just running in the background now."</div>
-      <div class="testimonial-author">— Sean M., Dublin Plumber</div>
-    </div>
-  </div>
-</div>
+  </div><!-- /.onboard-card -->
+</div><!-- /.onboard-wrap -->
 
 <script>
 let step = 1;
@@ -1247,14 +887,14 @@ function togglePw(inputId, btn) {
   btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
 }
 
-// Show "already have an account" message in place of the signup form
+// Show "already have an account" — only called when form_identifier_exists fires
 function showAlreadySignedIn() {
   document.getElementById('signup-fields').style.display = 'none';
   document.getElementById('verify-section').style.display = 'none';
   document.getElementById('already-signed-in').style.display = 'block';
 }
 
-// ── Wait for Clerk script to finish loading ──────────────────────────────────
+// ── Clerk loading ─────────────────────────────────────────────────────────────
 function waitForClerk(ms = 8000) {
   return new Promise((resolve, reject) => {
     if (window.Clerk) return resolve(window.Clerk);
@@ -1266,11 +906,8 @@ function waitForClerk(ms = 8000) {
   });
 }
 
-// Single shared promise — ensures clerk.load() is called exactly once.
-// If it were called a second time (e.g. from the step2 fallback while the
-// pre-load was still running) Clerk resets the client state and the signup
-// attempt created with the first client can no longer be found, producing
-// "No sign up attempt was found" on prepareEmailAddressVerification().
+// Single shared promise — clerk.load() must only ever be called once.
+// A second call resets the Clerk client state and causes "No sign up attempt was found".
 function getClerk() {
   if (!_clerkReadyPromise) {
     _clerkReadyPromise = waitForClerk(8000).then(async c => {
@@ -1282,9 +919,16 @@ function getClerk() {
   return _clerkReadyPromise;
 }
 
-// Kick off the load immediately so it's done by the time the user reaches step 2.
+// Kick off pre-load immediately. If a previous dashboard session is active,
+// sign out silently so onboarding always starts fresh.
 document.addEventListener('DOMContentLoaded', () => {
-  getClerk().catch(e => console.error('[Clerk] pre-load FAILED:', e.message));
+  getClerk().then(async clerk => {
+    if (clerk.user) {
+      console.log('[Clerk] existing session found — signing out for fresh onboarding');
+      await clerk.signOut();
+      console.log('[Clerk] signed out');
+    }
+  }).catch(e => console.error('[Clerk] pre-load FAILED:', e.message));
 });
 
 // ── Init Stripe ───────────────────────────────────────────────────────────────
@@ -1310,18 +954,31 @@ window.addEventListener('load', () => {
   card = elements.create('card', { hidePostalCode: true });
   card.mount('#card-element');
   card.on('focus', () => document.getElementById('card-wrap').classList.add('focused'));
-  card.on('blur', () => document.getElementById('card-wrap').classList.remove('focused'));
+  card.on('blur',  () => document.getElementById('card-wrap').classList.remove('focused'));
 });
 
 // ── Navigation ────────────────────────────────────────────────────────────────
+// Panels 1-3 map 1:1 to progress steps 1-3.
+// Panels 4 and 5 both map to progress step 4 (the "Done" step).
 function goTo(n) {
-  for (let i = 1; i <= 5; i++) {
+  const progStep = Math.min(n, 4);
+  for (let i = 1; i <= 4; i++) {
     const ps = document.getElementById(`ps-${i}`);
     const pn = document.getElementById(`pn-${i}`);
+    const pl = document.getElementById(`pl-${i}`); // connecting line after step i (pl-4 doesn't exist)
     ps.className = 'prog-step';
-    if (i < n) { ps.classList.add('done'); pn.textContent = '✓'; }
-    else if (i === n) { ps.classList.add('active'); pn.textContent = i; }
-    else { pn.textContent = i; }
+    if (i < progStep) {
+      ps.classList.add('done');
+      pn.textContent = '✓';
+      if (pl) pl.classList.add('done');
+    } else if (i === progStep) {
+      ps.classList.add('active');
+      pn.textContent = i;
+      if (pl) pl.classList.remove('done');
+    } else {
+      pn.textContent = i;
+      if (pl) pl.classList.remove('done');
+    }
   }
   document.getElementById(`panel-${step}`).classList.remove('active');
   step = n;
@@ -1357,35 +1014,16 @@ function step1Next() {
   err.classList.remove('show');
   biz = { name, phone, email, industry };
 
-  // Pre-fill the email display on step 2
   document.getElementById('clerkEmailDisplay').value = biz.email;
   goTo(2);
-
-  // Async check: if Clerk already has a signed-in session, decide what to do.
-  // Match → show "already have account" UI.
-  // Different email → sign out silently so the new signup can proceed cleanly.
-  getClerk().then(async clerk => {
-    if (clerk.user) {
-      const signedInEmail = (clerk.user.primaryEmailAddress?.emailAddress || '').toLowerCase();
-      const newEmail = biz.email.toLowerCase();
-      if (signedInEmail === newEmail) {
-        console.log('[Clerk] existing session matches entered email — showing already-signed-in notice');
-        showAlreadySignedIn();
-      } else {
-        console.log('[Clerk] existing session is for different email (' + signedInEmail + ') — signing out silently');
-        await clerk.signOut();
-        console.log('[Clerk] signed out, ready for new signup as', newEmail);
-      }
-    }
-  }).catch(() => {});
 }
 
 // ── Step 2: Create Clerk account ──────────────────────────────────────────────
 async function step2CreateAccount() {
-  const btn     = document.getElementById('clerkSignUpBtn');
-  const err     = document.getElementById('err-2');
-  const pw      = document.getElementById('clerkPassword').value;
-  const pwConf  = document.getElementById('clerkPasswordConfirm').value;
+  const btn    = document.getElementById('clerkSignUpBtn');
+  const err    = document.getElementById('err-2');
+  const pw     = document.getElementById('clerkPassword').value;
+  const pwConf = document.getElementById('clerkPasswordConfirm').value;
 
   err.classList.remove('show');
 
@@ -1406,7 +1044,7 @@ async function step2CreateAccount() {
   let clerk;
   try {
     clerk = await getClerk();
-    window._clerkInstance = clerk; // store for step3Pay()
+    window._clerkInstance = clerk;
   } catch (e) {
     err.textContent = 'Could not load authentication. Please refresh and try again.';
     err.classList.add('show');
@@ -1423,24 +1061,9 @@ async function step2CreateAccount() {
     return;
   }
 
-  // If a user session already exists, check whether it's for the same email they just entered.
-  // Same email → show "already have account" message.
-  // Different email → sign out silently and let the new signup proceed.
-  if (clerk.user) {
-    const signedInEmail = (clerk.user.primaryEmailAddress?.emailAddress || '').toLowerCase();
-    const newEmail = biz.email.toLowerCase();
-    if (signedInEmail === newEmail) {
-      console.log('[Clerk] step2: session email matches — showing already-signed-in notice');
-      showAlreadySignedIn();
-      btn.disabled = false;
-      btn.textContent = 'Create Account →';
-      return;
-    } else {
-      console.log('[Clerk] step2: session is for different email (' + signedInEmail + ') — signing out silently');
-      await clerk.signOut();
-      console.log('[Clerk] step2: signed out, continuing with signup as', newEmail);
-    }
-  }
+  // No clerk.user check here — the DOMContentLoaded handler already signed out
+  // any existing session. If somehow a session crept back in (e.g. very fast re-auth),
+  // Clerk's own API will return form_identifier_exists which we handle below.
 
   try {
     console.log('[Clerk] step2: calling signUp.create()...');
@@ -1448,11 +1071,10 @@ async function step2CreateAccount() {
       emailAddress: biz.email,
       password: pw,
     });
-    // Store via clerk.client.signUp — this reference stays live on the Clerk client object
     window._clerkSignUp = clerk.client.signUp;
     console.log('[Clerk] step2: create() done. id=', clerkSignUpObj.id, 'status=', clerkSignUpObj.status);
 
-    // Recovery: if the stored reference lost its id, fall back to clerk.client.signUp
+    // Recovery: clerk.client.signUp is the live reference; prefer it over the return value snapshot
     if (!window._clerkSignUp || !window._clerkSignUp.id) {
       window._clerkSignUp = clerk.client.signUp;
     }
@@ -1460,7 +1082,6 @@ async function step2CreateAccount() {
     await window._clerkSignUp.prepareEmailAddressVerification({ strategy: 'email_code' });
     console.log('[Clerk] step2: verification email sent');
 
-    // Swap to verification UI
     document.getElementById('signup-fields').style.display = 'none';
     document.getElementById('verify-section').style.display = 'block';
     document.getElementById('clerkEmailSent').textContent = biz.email;
@@ -1472,9 +1093,11 @@ async function step2CreateAccount() {
     if (e.errors?.length) {
       const code = e.errors[0].code;
       if (code === 'form_identifier_exists') {
-        msg = 'This email already has an account. <a href="/callback-dashboard.html" style="color:var(--accent);font-weight:700;text-decoration:none;">Sign in to your dashboard →</a>';
+        // Email already registered — show the friendly "already have account" UI
         showAlreadySignedIn();
-        return; // the already-signed-in div is now visible — no need to show the error box too
+        btn.disabled = false;
+        btn.textContent = 'Create Account →';
+        return;
       } else if (code === 'form_password_pwned') {
         msg = 'That password has appeared in a data breach. Please choose a different password.';
       } else {
@@ -1504,20 +1127,24 @@ async function step2VerifyCode() {
   btn.disabled = true;
   btn.textContent = 'Verifying...';
 
+  // Use a flag so goTo(3) is called OUTSIDE the try/catch.
+  // If it were inside, any exception from goTo() would be caught and shown
+  // as "Invalid code", hiding the real error and blocking the payment step.
+  let verified = false;
+
   try {
     const result = await window._clerkSignUp.attemptEmailAddressVerification({ code });
 
     if (result.status === 'complete') {
-      console.log('[Clerk] verification complete — advancing to payment step');
-      // reload() syncs the Clerk session — if it fails it's non-fatal; always proceed to step 3
+      console.log('[Clerk] verification complete');
+      // reload() syncs the session — non-fatal if it fails; we proceed regardless
       try {
         await window._clerkSignUp.reload();
         console.log('[Clerk] reload() done');
       } catch (reloadErr) {
-        console.warn('[Clerk] reload() after verification failed (non-fatal):', reloadErr.message);
+        console.warn('[Clerk] reload() failed (non-fatal):', reloadErr.message);
       }
-      console.log('[Clerk] calling goTo(3)');
-      goTo(3);
+      verified = true;
     } else {
       err.textContent = 'Verification incomplete. Please try again.';
       err.classList.add('show');
@@ -1540,6 +1167,12 @@ async function step2VerifyCode() {
     err.classList.add('show');
     btn.disabled = false;
     btn.textContent = 'Verify →';
+  }
+
+  // Unconditional — goTo(3) runs outside try/catch so errors can't swallow it
+  if (verified) {
+    console.log('[Clerk] calling goTo(3) — advancing to payment');
+    goTo(3);
   }
 }
 
@@ -1616,13 +1249,10 @@ async function step3Pay() {
 
     document.getElementById('successName').textContent = biz.name;
 
-    // Replace every hardcoded placeholder number in the setup wizard with
-    // the unique Irish number provisioned for this client.
     if (data.twilioNumber) {
       const panel4 = document.getElementById('panel-4');
       if (panel4) {
-        panel4.innerHTML = panel4.innerHTML
-          .split('+14783303514').join(data.twilioNumber);
+        panel4.innerHTML = panel4.innerHTML.split('+14783303514').join(data.twilioNumber);
       }
     }
 
@@ -1643,17 +1273,12 @@ async function testCall() {
   btn.disabled = true;
 
   try {
-    const res = await fetch(
-      'https://callbackai-production.up.railway.app/api/test-call',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: biz.phone })
-      }
-    );
-
+    const res = await fetch('https://callbackai-production.up.railway.app/api/test-call', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: biz.phone })
+    });
     const data = await res.json();
-
     if (data.success) {
       btn.textContent = '✓ Call sent — check your phone!';
       btn.classList.add('done');
