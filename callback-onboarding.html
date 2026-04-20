@@ -88,10 +88,15 @@ nav {
   border-left: 1px solid var(--border);
   border-right: 1px solid var(--border);
   grid-column: 2;
+  overflow: hidden; /* prevent buttons overflowing the panel border */
 }
 
-.right-fill {
-  background: var(--bg);
+.right-panel {
+  background: var(--ink);
+  padding: 60px 48px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   grid-column: 3;
 }
 
@@ -157,6 +162,94 @@ nav {
 
 .proof-text { font-size: 13.5px; color: rgba(255,255,255,0.6); line-height: 1.5; }
 .proof-text strong { color: #fff; display: block; margin-bottom: 2px; font-size: 14px; }
+
+/* Right panel */
+.right-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 100px;
+  padding: 6px 14px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.7);
+  margin-bottom: 28px;
+  align-self: flex-start;
+}
+
+.right-title {
+  font-family: 'Fraunces', serif;
+  font-weight: 900;
+  font-size: clamp(22px, 2.2vw, 34px);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: #fff;
+  margin-bottom: 32px;
+}
+
+.right-title em { font-style: italic; color: var(--accent2); }
+
+.right-bullets {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 36px;
+}
+
+.right-bullet {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+
+.right-bullet:last-child { border-bottom: none; }
+
+.bullet-check {
+  width: 24px; height: 24px;
+  background: rgba(255,180,0,0.12);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px;
+  color: var(--accent2);
+  font-weight: 800;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.bullet-text { font-size: 13.5px; color: rgba(255,255,255,0.55); line-height: 1.5; }
+.bullet-text strong { color: #fff; display: block; margin-bottom: 2px; font-size: 14px; }
+
+.testimonial-card {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 14px;
+  padding: 22px 24px;
+  margin-top: auto;
+}
+
+.testimonial-quote {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-size: 15.5px;
+  color: rgba(255,255,255,0.85);
+  line-height: 1.65;
+  margin-bottom: 14px;
+}
+
+.testimonial-stars {
+  color: var(--accent2);
+  font-size: 13px;
+  margin-bottom: 10px;
+  letter-spacing: 2px;
+}
+
+.testimonial-author {
+  font-size: 13px;
+  color: rgba(255,255,255,0.4);
+  font-weight: 600;
+}
 
 /* Progress steps */
 .progress {
@@ -585,7 +678,7 @@ nav {
 .verify-btn.done { background: var(--green); }
 
 /* Success */
-.success-wrap { text-align: center; padding: 20px 0; }
+.success-wrap { text-align: center; padding: 20px 0 8px; }
 
 .success-circle {
   width: 72px; height: 72px;
@@ -638,7 +731,7 @@ nav {
   .page { grid-template-columns: 1fr; }
   .left-panel { display: none; }
   .form-panel { border: none; padding: 32px 24px; }
-  .right-fill { display: none; }
+  .right-panel { display: none; }
 }
 </style>
 </head>
@@ -1085,7 +1178,54 @@ nav {
 
   </div>
 
-  <div class="right-fill"></div>
+  <!-- Right panel — trust / social proof -->
+  <div class="right-panel">
+    <div class="right-badge">
+      <span class="left-dot"></span>
+      Over 200 businesses trust CallBack AI
+    </div>
+
+    <div class="right-title">
+      You're <em>3 minutes</em> away from never missing a lead again
+    </div>
+
+    <div class="right-bullets">
+      <div class="right-bullet">
+        <div class="bullet-check">✓</div>
+        <div class="bullet-text">
+          <strong>AI texts back within 14 seconds</strong>
+          While competitors go to voicemail, you're already in conversation
+        </div>
+      </div>
+      <div class="right-bullet">
+        <div class="bullet-check">✓</div>
+        <div class="bullet-text">
+          <strong>78% of customers reply</strong>
+          Higher response rate than any callback attempt
+        </div>
+      </div>
+      <div class="right-bullet">
+        <div class="bullet-check">✓</div>
+        <div class="bullet-text">
+          <strong>Dedicated Irish number included</strong>
+          A real local number, not a shortcode
+        </div>
+      </div>
+      <div class="right-bullet">
+        <div class="bullet-check">✓</div>
+        <div class="bullet-text">
+          <strong>Cancel anytime</strong>
+          No contracts, no setup fees, no lock-in
+        </div>
+      </div>
+    </div>
+
+    <div class="testimonial-card">
+      <div class="testimonial-stars">★★★★★</div>
+      <div class="testimonial-quote">"Set it up in 5 minutes. Got my first reply the same day. It's just running in the background now."</div>
+      <div class="testimonial-author">— Sean M., Dublin Plumber</div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -1221,12 +1361,21 @@ function step1Next() {
   document.getElementById('clerkEmailDisplay').value = biz.email;
   goTo(2);
 
-  // Async check: if Clerk already has a signed-in session, show the "already have account" UI.
-  // By the time the user fills in step 1, the pre-load promise should already be resolved.
-  getClerk().then(clerk => {
+  // Async check: if Clerk already has a signed-in session, decide what to do.
+  // Match → show "already have account" UI.
+  // Different email → sign out silently so the new signup can proceed cleanly.
+  getClerk().then(async clerk => {
     if (clerk.user) {
-      console.log('[Clerk] user already signed in as', clerk.user.primaryEmailAddress?.emailAddress, '— showing already-signed-in notice');
-      showAlreadySignedIn();
+      const signedInEmail = (clerk.user.primaryEmailAddress?.emailAddress || '').toLowerCase();
+      const newEmail = biz.email.toLowerCase();
+      if (signedInEmail === newEmail) {
+        console.log('[Clerk] existing session matches entered email — showing already-signed-in notice');
+        showAlreadySignedIn();
+      } else {
+        console.log('[Clerk] existing session is for different email (' + signedInEmail + ') — signing out silently');
+        await clerk.signOut();
+        console.log('[Clerk] signed out, ready for new signup as', newEmail);
+      }
     }
   }).catch(() => {});
 }
@@ -1274,13 +1423,23 @@ async function step2CreateAccount() {
     return;
   }
 
-  // If a user session already exists, skip account creation and show a helpful message
+  // If a user session already exists, check whether it's for the same email they just entered.
+  // Same email → show "already have account" message.
+  // Different email → sign out silently and let the new signup proceed.
   if (clerk.user) {
-    console.log('[Clerk] step2: user already signed in —', clerk.user.primaryEmailAddress?.emailAddress);
-    showAlreadySignedIn();
-    btn.disabled = false;
-    btn.textContent = 'Create Account →';
-    return;
+    const signedInEmail = (clerk.user.primaryEmailAddress?.emailAddress || '').toLowerCase();
+    const newEmail = biz.email.toLowerCase();
+    if (signedInEmail === newEmail) {
+      console.log('[Clerk] step2: session email matches — showing already-signed-in notice');
+      showAlreadySignedIn();
+      btn.disabled = false;
+      btn.textContent = 'Create Account →';
+      return;
+    } else {
+      console.log('[Clerk] step2: session is for different email (' + signedInEmail + ') — signing out silently');
+      await clerk.signOut();
+      console.log('[Clerk] step2: signed out, continuing with signup as', newEmail);
+    }
   }
 
   try {
