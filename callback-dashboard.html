@@ -492,28 +492,12 @@ body {
   line-height: 1.5;
 }
 
-/* ── DEBUG: fixed overlay — visible on every screen ── */
-#debug-panel {
-  position: fixed;
-  top: 0; left: 0; right: 0;
-  background: black;
-  color: lime;
-  font-family: monospace;
-  font-size: 14px;
-  padding: 10px;
-  z-index: 99999;
-  max-height: 50vh;
-  overflow-y: auto;
-}
 </style>
 </head>
 <body>
 
 <!-- Fatal error overlay (DEBUG) -->
 <div id="fatal-error"></div>
-
-<!-- DEBUG: fixed overlay — stays visible across all screens -->
-<div id="debug-panel"></div>
 
 <!-- Loading -->
 <div id="loading-screen">
@@ -648,18 +632,10 @@ body {
 const API = 'https://callbackai-production.up.railway.app';
 const _t0  = Date.now();
 
-// ── Debug log — fixed overlay, always visible regardless of current screen ────
-function dbg(msg) {
-  const p = document.getElementById('debug-panel');
-  if (p) p.innerHTML += '<div>' + new Date().toISOString().slice(11,19) + ' ' + msg + '</div>';
-  console.log(msg);
-}
-
 // Show a permanent red bar at the top of the page AND stop the spinner.
 // Nothing should spin forever — every code path must call this or show().
 function fatalError(msg) {
   document.getElementById('boot-spinner').style.display = 'none';
-  dbg('FATAL: ' + msg);
   const el = document.getElementById('fatal-error');
   el.textContent = 'Error: ' + msg;
   el.style.display = 'block';
@@ -684,7 +660,6 @@ function show(id) {
 // The hosted page always works — after sign-in Clerk redirects back here with a session.
 function redirectToSignIn() {
   const returnUrl = encodeURIComponent(window.location.origin + window.location.pathname);
-  dbg('redirecting to Clerk hosted sign-in...');
   window.location.href = 'https://accounts.callbackai.ie/sign-in?redirect_url=' + returnUrl;
 }
 
@@ -703,7 +678,6 @@ async function loadDashboard(clerk) {
 
   // Step A: email
   const email = clerk.user.primaryEmailAddress?.emailAddress;
-  dbg('A: email = ' + (email || 'NONE'));
   if (!email) {
     document.getElementById('error-area').innerHTML =
       '<div class="error-banner">No email address found on your Clerk account. Please contact support.</div>';
@@ -712,14 +686,11 @@ async function loadDashboard(clerk) {
   }
 
   // Step B: get JWT — session must exist here since clerk.user is set
-  dbg('B: calling clerk.session.getToken()...');
   let token;
   try {
     if (!clerk.session) throw new Error('clerk.session is null');
     token = await withTimeout(clerk.session.getToken(), 5000, 'getToken');
-    dbg('B: token ok — ' + token.slice(0, 20) + '...', 'ok');
   } catch (e) {
-    dbg('B: FAILED — ' + e.message, 'err');
     document.getElementById('error-area').innerHTML =
       '<div class="error-banner">Could not get session token: ' + e.message + '. Please refresh the page.</div>';
     document.getElementById('callList').innerHTML = '';
@@ -727,15 +698,12 @@ async function loadDashboard(clerk) {
   }
 
   // Step C0: health-check — confirm server is reachable before spending 5s on auth
-  dbg('C0: GET /health...');
   try {
     const healthRes = await fetch(API + '/health');
     if (!healthRes.ok) {
       throw new Error('HTTP ' + healthRes.status);
     }
-    dbg('C0: server reachable', 'ok');
   } catch (e) {
-    dbg('C0: server unreachable — ' + e.message, 'err');
     document.getElementById('error-area').innerHTML =
       '<div class="error-banner">Server is offline — please wait 30 seconds and <a href="">refresh the page</a>.</div>';
     document.getElementById('callList').innerHTML =
@@ -744,7 +712,6 @@ async function loadDashboard(clerk) {
   }
 
   // Step C: fetch business
-  dbg('C: GET /api/my-business  email=' + email);
   let biz;
   try {
     const r = await withTimeout(
@@ -752,10 +719,7 @@ async function loadDashboard(clerk) {
         headers: { 'Authorization': 'Bearer ' + token, 'X-User-Email': email }
       }), 5000, 'GET /api/my-business');
 
-    dbg('C: HTTP ' + r.status);
-
     if (r.status === 401) {
-      dbg('C: 401 — session rejected, redirecting to sign-in');
       redirectToSignIn();
       return;
     }
@@ -764,7 +728,6 @@ async function loadDashboard(clerk) {
         '<div class="error-banner">No account found for <strong>' + email + '</strong>. ' +
         '<a href="callback-onboarding.html">Sign up here</a>.</div>';
       document.getElementById('callList').innerHTML = '';
-      dbg('C: 404 — no business for this email', 'err');
       return;
     }
     if (!r.ok) {
@@ -773,10 +736,7 @@ async function loadDashboard(clerk) {
       throw new Error(msg);
     }
     biz = await r.json();
-    dbg('C: body = ' + JSON.stringify(biz));
-    dbg('C: business = "' + (biz.name || biz.business_name || '?') + '" id=' + biz.id, 'ok');
   } catch (e) {
-    dbg('C: FAILED — ' + e.message, 'err');
     // Distinguish timeout from network-down from server error
     let userMsg;
     if (e.message.startsWith('Timed out')) {
@@ -802,7 +762,6 @@ async function loadDashboard(clerk) {
   }
 
   // Step D: fetch calls
-  dbg('D: GET /api/businesses/' + biz.id + '/calls');
   let calls = [];
   try {
     const r = await withTimeout(
@@ -810,18 +769,15 @@ async function loadDashboard(clerk) {
         headers: { 'Authorization': 'Bearer ' + token }
       }), 8000, 'GET /calls');
 
-    dbg('D: HTTP ' + r.status);
     if (!r.ok) {
       let msg = 'HTTP ' + r.status;
       try { msg = (await r.json()).error || msg; } catch (_) {}
       throw new Error(msg);
     }
     calls = await r.json();
-    dbg('D: ' + calls.length + ' call(s) loaded', 'ok');
   } catch (e) {
     document.getElementById('error-area').innerHTML =
       '<div class="error-banner">Could not load calls: ' + e.message + '</div>';
-    dbg('D: calls failed — ' + e.message, 'err');
     // Still render stats at zero rather than leaving the page broken
   }
 
@@ -837,7 +793,6 @@ async function loadDashboard(clerk) {
   const badge = document.getElementById('navBadge');
   if (missedCount > 0) { badge.textContent = missedCount; badge.style.display = 'inline-block'; }
 
-  dbg('E: rendering ' + calls.length + ' calls', 'ok');
   renderCalls(calls, biz.id, token);
 }
 
@@ -939,7 +894,6 @@ function waitForClerk(ms) {
 async function boot() {
   console.log('[boot] start — url:', window.location.href);
 
-  dbg('1: waiting for Clerk SDK...');
   console.log('[boot] step 1: waiting for window.Clerk...');
 
   // Hard 15-second guard: clerk.load() on a redirect callback can take 10s+.
@@ -950,7 +904,6 @@ async function boot() {
   let clerk;
   try {
     clerk = await waitForClerk(5000);
-    dbg('1: Clerk SDK ready', 'ok');
     console.log('[boot] step 1 OK: window.Clerk =', typeof window.Clerk);
   } catch (e) {
     clearTimeout(guard);
@@ -959,7 +912,6 @@ async function boot() {
     return;
   }
 
-  dbg('2: calling clerk.load()...');
   console.log('[boot] step 2: calling clerk.load()...');
   // No timeout here — when Clerk redirects back after hosted sign-in it appends
   // auth tokens to the URL and load() must make extra network calls to exchange
@@ -967,7 +919,6 @@ async function boot() {
   // if load() hangs completely.
   try {
     await clerk.load();
-    dbg('2: clerk.load() done');
     console.log('[boot] step 2 OK: clerk.user =', clerk.user ? clerk.user.id : 'null');
   } catch (e) {
     clearTimeout(guard);
@@ -979,12 +930,10 @@ async function boot() {
   clearTimeout(guard); // boot succeeded — data loading has its own timeouts
 
   const email = clerk.user?.primaryEmailAddress?.emailAddress;
-  dbg('3: user=' + (clerk.user ? 'YES (' + email + ')' : 'NO'));
   console.log('[boot] step 3: clerk.user:', clerk.user ? 'signed in (' + email + ')' : 'not signed in');
 
   // Case A: Signed in — load dashboard.
   if (clerk.user) {
-    dbg('3: signed in — loading dashboard');
     console.log('[boot] → Case A: already signed in, loading dashboard');
     await loadDashboard(clerk);
     return;
@@ -993,7 +942,6 @@ async function boot() {
   // Case B: No session — redirect to Clerk's hosted sign-in page.
   // The embedded mountSignIn() widget fails to render on static Netlify pages.
   // The hosted page always works; Clerk redirects back here with a valid session.
-  dbg('3: no session — redirecting to Clerk sign-in');
   console.log('[boot] → Case B: no session, redirecting to hosted sign-in');
   redirectToSignIn();
 }
