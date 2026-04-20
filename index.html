@@ -71,14 +71,20 @@ nav {
 }
 .nav-cta:hover { background: #d93a0e; transform: translateY(-1px); }
 
+.nav-logo { text-decoration: none; color: inherit; }
+
 .nav-login {
   font-size: 14px;
-  font-weight: 500;
-  color: var(--muted);
+  font-weight: 600;
+  color: var(--ink);
   text-decoration: none;
-  transition: color 0.2s;
+  padding: 10px 20px;
+  border: 1.5px solid var(--ink);
+  border-radius: 6px;
+  transition: all 0.2s;
   white-space: nowrap;
 }
+.nav-login:hover { background: var(--ink); color: #fff; }
 
 /* HERO */
 .hero {
@@ -444,24 +450,28 @@ footer {
 @media (max-width: 768px) {
   nav { padding: 14px 20px; }
   .nav-links { display: none; }
+  .nav-login { display: none; }
   .stats-band { flex-direction: column; gap: 24px; }
   .stat-item { border-right: none; border-bottom: 1px solid rgba(255,255,255,0.1); padding: 16px 0; }
   .problem-grid, .steps, .industries { grid-template-columns: 1fr; }
   .steps::before { display: none; }
+  .hero-ctas { flex-direction: column; align-items: stretch; }
+  .btn-big { width: 100%; text-align: center; }
+  .cta-btn { width: 100%; box-sizing: border-box; }
 }
 </style>
 </head>
 <body>
 
 <nav>
-  <div class="nav-logo">CallBack<span class="nav-logo-dot">.</span>ai</div>
+  <a href="/" class="nav-logo">CallBack<span class="nav-logo-dot">.</span>ai</a>
   <ul class="nav-links">
     <li><a href="#how">How it works</a></li>
     <li><a href="#industries">Industries</a></li>
     <li><a href="#pricing">Pricing</a></li>
   </ul>
   <a href="callback-dashboard.html" class="nav-login">Client Login →</a>
-  <a href="#pricing" class="nav-cta">Start Free Trial →</a>
+  <a href="/callback-onboarding.html" class="nav-cta">Start Free Trial →</a>
 </nav>
 
 <!-- HERO -->
@@ -471,7 +481,7 @@ footer {
   <p class="hero-sub">Small businesses lose thousands every month to missed calls. CallBack AI texts every missed caller within seconds — automatically — so you never lose a lead again.</p>
 
   <div class="hero-ctas">
-    <a href="#pricing" class="btn-big primary">Start Free — 14 Days Free</a>
+    <a href="/callback-onboarding.html" class="btn-big primary">Start Free — 14 Days Free</a>
     <a href="#how" class="btn-big ghost">See How It Works ↓</a>
   </div>
 
@@ -618,7 +628,7 @@ footer {
 <section class="cta-section">
   <h2 class="section-title reveal">Stop leaving money on the table.</h2>
   <p class="cta-sub reveal">Set up in 5 minutes. See recovered revenue in week one.</p>
-  <a href="#" class="cta-btn reveal">Start Your Free 14-Day Trial →</a>
+  <a href="/callback-onboarding.html" class="cta-btn reveal">Start Your Free 14-Day Trial →</a>
   <p class="cta-note reveal">No credit card required · Cancel anytime · Setup in 5 minutes</p>
 </section>
 
