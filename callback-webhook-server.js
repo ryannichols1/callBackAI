@@ -30,14 +30,24 @@
 process.on('uncaughtException',  (err) => console.error('UNCAUGHT EXCEPTION:', err.stack || err));
 process.on('unhandledRejection', (err) => console.error('UNHANDLED REJECTION:', err));
 
-// Graceful shutdown on SIGTERM (Railway sends this before every new deployment
-// and when a health check fails). Without this handler Node.js exits immediately
-// which Railway can interpret as unhealthy and trigger a restart loop.
+// Graceful shutdown on SIGTERM (Railway sends this before every new deployment).
+// server.close() stops new connections but won't fire its callback until ALL
+// existing connections (including Railway's persistent health-check connection)
+// close naturally. Without a timeout this hangs forever → Railway sends SIGKILL
+// → new deployment starts → same thing → crash loop.
 process.on('SIGTERM', () => {
   console.log('[shutdown] SIGTERM received — closing server gracefully');
+  // Force-exit after 10 s if server.close() hasn't drained all connections.
+  const forceExit = setTimeout(() => {
+    console.warn('[shutdown] server.close() did not finish in 10 s — forcing exit');
+    process.exit(0);
+  }, 10_000);
+  // Don't let this timer keep the event loop alive on its own.
+  if (forceExit.unref) forceExit.unref();
+
   if (typeof server !== 'undefined') {
     server.close(() => {
-      console.log('[shutdown] HTTP server closed');
+      console.log('[shutdown] HTTP server closed cleanly');
       process.exit(0);
     });
   } else {
@@ -55,12 +65,17 @@ const REQUIRED_ENV = [
   'TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_PHONE_NUMBER',
   'ANTHROPIC_API_KEY', 'SUPABASE_URL', 'SUPABASE_SERVICE_KEY',
   'STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID', 'CLERK_SECRET_KEY',
-  // NOTE: API_SECRET removed — requireApiAuth was replaced by Clerk JWT auth
-  // and process.env.API_SECRET is no longer referenced anywhere in the codebase.
-  // Keeping it here would crash the server if it's not set in Railway env vars.
 ];
-// Log all env var names (NOT values) so Railway logs show what is/isn't set
-console.log('[startup] env vars present:', REQUIRED_ENV.filter(k => !!process.env[k]).join(', '));
+const OPTIONAL_ENV = [
+  'RAILWAY_URL',   // fallback to hardcoded Railway domain if absent
+  'RESEND_API_KEY', // welcome email — skipped silently if absent
+  'PORT',           // defaults to 3000
+];
+
+// Log every var by name (NOT value) so Railway logs show exactly what is/isn't set
+REQUIRED_ENV.forEach(k => console.log(`[startup] ${k}: ${process.env[k] ? 'SET' : 'MISSING ⚠️'}`));
+OPTIONAL_ENV.forEach(k => console.log(`[startup] ${k}: ${process.env[k] ? 'SET' : 'not set (optional)'}`));
+
 const missing = REQUIRED_ENV.filter(k => !process.env[k]);
 if (missing.length > 0) {
   console.error(`STARTUP FAILED — missing required env vars: ${missing.join(', ')}`);
@@ -145,7 +160,10 @@ try {
   // anthropic remains null — routes that use it will fall back to static SMS
 }
 
-const supabase     = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+
+const RAILWAY_URL = process.env.RAILWAY_URL || 'https://callbackai-production.up.railway.app';
+console.log('[startup] RAILWAY_URL:', RAILWAY_URL);
 
 // ─── Industry tone map ────────────────────────────────────────────────────────
 
@@ -829,8 +847,6 @@ app.post('/api/test-call', async (req, res) => {
 // On any failure after Stripe is charged we cancel the subscription, delete
 // the Stripe customer, and release the Twilio number so the client isn't
 // left in a broken state and isn't billed.
-
-const RAILWAY_URL = process.env.RAILWAY_URL || 'https://callbackai-production.up.railway.app';
 
 app.post('/api/onboard', async (req, res) => {
   const { paymentMethodId, business, clerkUserId } = req.body;
