@@ -280,6 +280,62 @@ nav {
 
 .field input::placeholder { color: var(--muted); opacity: 0.6; }
 
+/* Phone field — country code selector + number input combined */
+.phone-row {
+  display: flex;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.phone-row:focus-within {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px rgba(22,18,14,0.06);
+}
+.phone-row .country-select {
+  border: none;
+  border-right: 1.5px solid var(--border);
+  background: transparent;
+  padding: 13px 8px 13px 12px;
+  font-family: 'Epilogue', sans-serif;
+  font-size: 14px;
+  color: var(--ink);
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  flex-shrink: 0;
+  width: 115px;
+}
+.phone-row .phone-num-input {
+  flex: 1;
+  border: none !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 13px 14px;
+}
+
+/* Password visibility toggle */
+.pw-wrap { position: relative; }
+.pw-wrap input { padding-right: 44px !important; }
+.pw-toggle {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  line-height: 1;
+  transition: color 0.2s;
+}
+.pw-toggle:hover { color: var(--ink); }
+
 /* Trial notice */
 .trial-notice {
   display: flex;
@@ -680,7 +736,111 @@ nav {
 
       <div class="field">
         <label>Business Phone Number</label>
-        <input type="tel" id="bizPhone" placeholder="+353 87 123 4567">
+        <div class="phone-row">
+          <select class="country-select" id="phoneCountry">
+            <option value="+353">🇮🇪 IE +353</option>
+            <option value="+44">🇬🇧 UK +44</option>
+            <option value="+1">🇺🇸 US +1</option>
+            <option value="+61">🇦🇺 AU +61</option>
+            <option value="+1">🇨🇦 CA +1</option>
+            <option disabled>──────────</option>
+            <option value="+93">🇦🇫 Afghanistan +93</option>
+            <option value="+355">🇦🇱 Albania +355</option>
+            <option value="+213">🇩🇿 Algeria +213</option>
+            <option value="+244">🇦🇴 Angola +244</option>
+            <option value="+54">🇦🇷 Argentina +54</option>
+            <option value="+374">🇦🇲 Armenia +374</option>
+            <option value="+43">🇦🇹 Austria +43</option>
+            <option value="+994">🇦🇿 Azerbaijan +994</option>
+            <option value="+973">🇧🇭 Bahrain +973</option>
+            <option value="+880">🇧🇩 Bangladesh +880</option>
+            <option value="+375">🇧🇾 Belarus +375</option>
+            <option value="+32">🇧🇪 Belgium +32</option>
+            <option value="+591">🇧🇴 Bolivia +591</option>
+            <option value="+387">🇧🇦 Bosnia +387</option>
+            <option value="+55">🇧🇷 Brazil +55</option>
+            <option value="+359">🇧🇬 Bulgaria +359</option>
+            <option value="+855">🇰🇭 Cambodia +855</option>
+            <option value="+56">🇨🇱 Chile +56</option>
+            <option value="+86">🇨🇳 China +86</option>
+            <option value="+57">🇨🇴 Colombia +57</option>
+            <option value="+385">🇭🇷 Croatia +385</option>
+            <option value="+357">🇨🇾 Cyprus +357</option>
+            <option value="+420">🇨🇿 Czech Republic +420</option>
+            <option value="+45">🇩🇰 Denmark +45</option>
+            <option value="+20">🇪🇬 Egypt +20</option>
+            <option value="+372">🇪🇪 Estonia +372</option>
+            <option value="+251">🇪🇹 Ethiopia +251</option>
+            <option value="+358">🇫🇮 Finland +358</option>
+            <option value="+33">🇫🇷 France +33</option>
+            <option value="+995">🇬🇪 Georgia +995</option>
+            <option value="+49">🇩🇪 Germany +49</option>
+            <option value="+233">🇬🇭 Ghana +233</option>
+            <option value="+30">🇬🇷 Greece +30</option>
+            <option value="+36">🇭🇺 Hungary +36</option>
+            <option value="+354">🇮🇸 Iceland +354</option>
+            <option value="+91">🇮🇳 India +91</option>
+            <option value="+62">🇮🇩 Indonesia +62</option>
+            <option value="+98">🇮🇷 Iran +98</option>
+            <option value="+964">🇮🇶 Iraq +964</option>
+            <option value="+972">🇮🇱 Israel +972</option>
+            <option value="+39">🇮🇹 Italy +39</option>
+            <option value="+81">🇯🇵 Japan +81</option>
+            <option value="+962">🇯🇴 Jordan +962</option>
+            <option value="+7">🇰🇿 Kazakhstan +7</option>
+            <option value="+254">🇰🇪 Kenya +254</option>
+            <option value="+965">🇰🇼 Kuwait +965</option>
+            <option value="+371">🇱🇻 Latvia +371</option>
+            <option value="+961">🇱🇧 Lebanon +961</option>
+            <option value="+370">🇱🇹 Lithuania +370</option>
+            <option value="+352">🇱🇺 Luxembourg +352</option>
+            <option value="+60">🇲🇾 Malaysia +60</option>
+            <option value="+356">🇲🇹 Malta +356</option>
+            <option value="+52">🇲🇽 Mexico +52</option>
+            <option value="+212">🇲🇦 Morocco +212</option>
+            <option value="+31">🇳🇱 Netherlands +31</option>
+            <option value="+64">🇳🇿 New Zealand +64</option>
+            <option value="+234">🇳🇬 Nigeria +234</option>
+            <option value="+47">🇳🇴 Norway +47</option>
+            <option value="+968">🇴🇲 Oman +968</option>
+            <option value="+92">🇵🇰 Pakistan +92</option>
+            <option value="+507">🇵🇦 Panama +507</option>
+            <option value="+51">🇵🇪 Peru +51</option>
+            <option value="+63">🇵🇭 Philippines +63</option>
+            <option value="+48">🇵🇱 Poland +48</option>
+            <option value="+351">🇵🇹 Portugal +351</option>
+            <option value="+974">🇶🇦 Qatar +974</option>
+            <option value="+40">🇷🇴 Romania +40</option>
+            <option value="+7">🇷🇺 Russia +7</option>
+            <option value="+966">🇸🇦 Saudi Arabia +966</option>
+            <option value="+381">🇷🇸 Serbia +381</option>
+            <option value="+65">🇸🇬 Singapore +65</option>
+            <option value="+421">🇸🇰 Slovakia +421</option>
+            <option value="+386">🇸🇮 Slovenia +386</option>
+            <option value="+27">🇿🇦 South Africa +27</option>
+            <option value="+82">🇰🇷 South Korea +82</option>
+            <option value="+34">🇪🇸 Spain +34</option>
+            <option value="+94">🇱🇰 Sri Lanka +94</option>
+            <option value="+46">🇸🇪 Sweden +46</option>
+            <option value="+41">🇨🇭 Switzerland +41</option>
+            <option value="+886">🇹🇼 Taiwan +886</option>
+            <option value="+255">🇹🇿 Tanzania +255</option>
+            <option value="+66">🇹🇭 Thailand +66</option>
+            <option value="+216">🇹🇳 Tunisia +216</option>
+            <option value="+90">🇹🇷 Turkey +90</option>
+            <option value="+256">🇺🇬 Uganda +256</option>
+            <option value="+380">🇺🇦 Ukraine +380</option>
+            <option value="+971">🇦🇪 UAE +971</option>
+            <option value="+598">🇺🇾 Uruguay +598</option>
+            <option value="+998">🇺🇿 Uzbekistan +998</option>
+            <option value="+58">🇻🇪 Venezuela +58</option>
+            <option value="+84">🇻🇳 Vietnam +84</option>
+            <option value="+967">🇾🇪 Yemen +967</option>
+            <option value="+260">🇿🇲 Zambia +260</option>
+            <option value="+263">🇿🇼 Zimbabwe +263</option>
+          </select>
+          <input type="tel" id="bizPhoneNumber" class="phone-num-input" placeholder="87 123 4567">
+        </div>
       </div>
 
       <div class="field">
@@ -706,12 +866,22 @@ nav {
 
         <div class="field">
           <label>Password</label>
-          <input type="password" id="clerkPassword" placeholder="At least 8 characters">
+          <div class="pw-wrap">
+            <input type="password" id="clerkPassword" placeholder="At least 8 characters">
+            <button type="button" class="pw-toggle" onclick="togglePw('clerkPassword',this)" tabindex="-1" aria-label="Show password">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
         </div>
 
         <div class="field">
           <label>Confirm Password</label>
-          <input type="password" id="clerkPasswordConfirm" placeholder="Repeat your password">
+          <div class="pw-wrap">
+            <input type="password" id="clerkPasswordConfirm" placeholder="Repeat your password">
+            <button type="button" class="pw-toggle" onclick="togglePw('clerkPasswordConfirm',this)" tabindex="-1" aria-label="Show password">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
         </div>
 
         <button class="btn-primary" id="clerkSignUpBtn" onclick="step2CreateAccount()">Create Account →</button>
@@ -916,6 +1086,18 @@ let stripe, card;
 let clerkSignUpObj = null;
 let _clerkReadyPromise = null;
 
+// ── Password visibility toggle ────────────────────────────────────────────────
+const EYE_SVG     = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const EYE_OFF_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+
+function togglePw(inputId, btn) {
+  const input   = document.getElementById(inputId);
+  const showing = input.type === 'text';
+  input.type    = showing ? 'password' : 'text';
+  btn.innerHTML = showing ? EYE_SVG : EYE_OFF_SVG;
+  btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+}
+
 // ── Wait for Clerk script to finish loading ──────────────────────────────────
 function waitForClerk(ms = 8000) {
   return new Promise((resolve, reject) => {
@@ -998,12 +1180,17 @@ function isValidEmail(e) {
 // ── Step 1: Business details ──────────────────────────────────────────────────
 function step1Next() {
   const name     = document.getElementById('bizName').value.trim();
-  const phone    = document.getElementById('bizPhone').value.trim();
   const email    = document.getElementById('bizEmail').value.trim();
   const industry = document.getElementById('bizIndustry').value;
   const err      = document.getElementById('err-1');
 
-  if (!name || !phone || !email || !isValidEmail(email)) {
+  // Combine country dial code + local number into E.164 (e.g. +353871234567)
+  const countryCode = document.getElementById('phoneCountry').value;
+  const rawNum      = document.getElementById('bizPhoneNumber').value.trim().replace(/[\s\-\(\)]/g, '');
+  const numDigits   = rawNum.replace(/^0+/, ''); // strip leading zero (e.g. 087 → 87)
+  const phone       = countryCode + numDigits;
+
+  if (!name || !numDigits || !email || !isValidEmail(email)) {
     err.classList.add('show');
     err.textContent = !isValidEmail(email) && email
       ? 'Please enter a valid email address.'
@@ -1045,6 +1232,7 @@ async function step2CreateAccount() {
   let clerk;
   try {
     clerk = await getClerk();
+    window._clerkInstance = clerk; // store for step3Pay()
   } catch (e) {
     err.textContent = 'Could not load authentication. Please refresh and try again.';
     err.classList.add('show');
@@ -1067,9 +1255,16 @@ async function step2CreateAccount() {
       emailAddress: biz.email,
       password: pw,
     });
+    // Store via clerk.client.signUp — this reference stays live on the Clerk client object
+    window._clerkSignUp = clerk.client.signUp;
     console.log('[Clerk] step2: create() done. id=', clerkSignUpObj.id, 'status=', clerkSignUpObj.status);
 
-    await clerkSignUpObj.prepareEmailAddressVerification({ strategy: 'email_code' });
+    // Recovery: if the stored reference lost its id, fall back to clerk.client.signUp
+    if (!window._clerkSignUp || !window._clerkSignUp.id) {
+      window._clerkSignUp = clerk.client.signUp;
+    }
+
+    await window._clerkSignUp.prepareEmailAddressVerification({ strategy: 'email_code' });
     console.log('[Clerk] step2: verification email sent');
 
     // Swap to verification UI
@@ -1115,9 +1310,11 @@ async function step2VerifyCode() {
   btn.textContent = 'Verifying...';
 
   try {
-    const result = await clerkSignUpObj.attemptEmailAddressVerification({ code });
+    const result = await window._clerkSignUp.attemptEmailAddressVerification({ code });
 
     if (result.status === 'complete') {
+      // Reload ensures the Clerk session is fully established before Stripe loads
+      await window._clerkSignUp.reload();
       goTo(3); // proceed to payment
     } else {
       err.textContent = 'Verification incomplete. Please try again.';
@@ -1148,7 +1345,7 @@ async function resendCode() {
   const err = document.getElementById('err-2');
   err.classList.remove('show');
   try {
-    await clerkSignUpObj.prepareEmailAddressVerification({ strategy: 'email_code' });
+    await window._clerkSignUp.prepareEmailAddressVerification({ strategy: 'email_code' });
     err.textContent = 'A new code has been sent to your email.';
     err.style.background = '#e8f5ee';
     err.style.borderColor = 'rgba(13,122,74,0.2)';
@@ -1201,7 +1398,7 @@ async function step3Pay() {
       body: JSON.stringify({
         paymentMethodId: paymentMethod.id,
         business:        biz,
-        clerkUserId:     clerkInstance?.user?.id || null,
+        clerkUserId:     window._clerkInstance?.user?.id || null,
       }),
     });
 
