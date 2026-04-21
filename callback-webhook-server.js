@@ -184,59 +184,29 @@ async function provisionBusiness({ businessName, industry, phone, email, clerkUs
     console.log(`[provision] no existing record found — proceeding with provisioning`);
   }
 
-  // ── Step 1: Find an available Irish Twilio number ──────────────────────────
-  console.log(`[provision] STEP 1 — searching for available Irish Twilio number...`);
-  let available;
-  try {
-    available = await twilioClient.availablePhoneNumbers('IE').local.list({ limit: 5 });
-  } catch (err) {
-    console.error(`[provision] STEP 1 FAILED — Twilio availablePhoneNumbers error: ${err.message}`, err);
-    throw err;
-  }
+  // ── Step 1: Use shared Twilio number ──────────────────────────────────────
+  const twilioNumber = process.env.TWILIO_PHONE_NUMBER;
+  console.log(`[provision] STEP 1 — using shared Twilio number: ${maskPhone(twilioNumber)}`);
 
-  if (!available.length) throw new Error('No Irish (+353) Twilio numbers currently available');
-  const selectedNumber = available[0].phoneNumber;
-  console.log(`[provision] STEP 1 OK — found number ${maskPhone(selectedNumber)}`);
-
-  // ── Step 2: Purchase and configure the number ──────────────────────────────
-  console.log(`[provision] STEP 2 — purchasing Twilio number...`);
-  let purchased;
-  try {
-    purchased = await twilioClient.incomingPhoneNumbers.create({
-      phoneNumber:          selectedNumber,
-      addressSid:           process.env.TWILIO_ADDRESS_SID,
-      voiceUrl:             `${RAILWAY_URL}/webhook/incoming-call`,
-      voiceMethod:          'POST',
-      statusCallback:       `${RAILWAY_URL}/webhook/call-status`,
-      statusCallbackMethod: 'POST',
-      smsUrl:               `${RAILWAY_URL}/webhook/sms-reply`,
-      smsMethod:            'POST',
-      friendlyName:         `CallBackAI — ${bizName}`,
-    });
-  } catch (err) {
-    console.error(`[provision] STEP 2 FAILED — Twilio purchase error: ${err.message}`, err);
-    throw err;
-  }
-  console.log(`[provision] STEP 2 OK — Twilio number purchased | sid: ${purchased.sid}`);
-
-  // ── Step 3: Create the Supabase record ────────────────────────────────────
-  console.log(`[provision] STEP 3 — attempting Supabase INSERT for email: ${maskEmail(email)}`);
+  // ── Step 2: Create the Supabase record ────────────────────────────────────
+  console.log(`[provision] STEP 2 — attempting Supabase INSERT for email: ${maskEmail(email)}`);
   const insertPayload = {
     name:                   bizName,
     email:                  email,
     industry:               isValidIndustry(industry) ? industry : 'general',
     phone:                  cleanPhone,
-    twilio_number:          selectedNumber,
+    twilio_number:          twilioNumber,
     status:                 'active',
     setup_completed:        false,
     stripe_customer_id:     stripeCustomerId || null,
     stripe_subscription_id: stripeSubscriptionId || null,
   };
-  console.log(`[provision] STEP 3 — insert payload (no PII):`, {
+  console.log(`[provision] STEP 2 — insert payload (no PII):`, {
     name:                   insertPayload.name,
     industry:               insertPayload.industry,
     status:                 insertPayload.status,
     setup_completed:        insertPayload.setup_completed,
+    twilio_number:          maskPhone(insertPayload.twilio_number),
     stripe_customer_id:     insertPayload.stripe_customer_id ? 'SET' : 'null',
     stripe_subscription_id: insertPayload.stripe_subscription_id ? 'SET' : 'null',
   });
@@ -248,20 +218,20 @@ async function provisionBusiness({ businessName, industry, phone, email, clerkUs
     .single();
 
   if (dbError) {
-    console.error(`[provision] STEP 3 FAILED — Supabase insert error:`, dbError);
-    console.error(`[provision] STEP 3 error detail: code=${dbError.code} | hint=${dbError.hint} | details=${dbError.details}`);
+    console.error(`[provision] STEP 2 FAILED — Supabase insert error:`, dbError);
+    console.error(`[provision] STEP 2 error detail: code=${dbError.code} | hint=${dbError.hint} | details=${dbError.details}`);
     throw new Error(`Supabase insert failed: ${dbError.message}`);
   }
 
-  console.log(`[provision] STEP 3 OK — record created | id: ${newBusiness.id}`);
+  console.log(`[provision] STEP 2 OK — record created | id: ${newBusiness.id}`);
 
-  // ── Step 4: Welcome email (fire-and-forget) ────────────────────────────────
-  console.log(`[provision] STEP 4 — sending welcome email...`);
-  sendWelcomeEmail(email, bizName, selectedNumber).catch(err =>
-    console.error('[provision] STEP 4 FAILED — welcome email error:', err.message)
+  // ── Step 3: Welcome email (fire-and-forget) ────────────────────────────────
+  console.log(`[provision] STEP 3 — sending welcome email...`);
+  sendWelcomeEmail(email, bizName, twilioNumber).catch(err =>
+    console.error('[provision] STEP 3 FAILED — welcome email error:', err.message)
   );
 
-  console.log(`[provision] COMPLETE — "${bizName}" | id: ${newBusiness.id} | number: ${maskPhone(selectedNumber)} | email: ${maskEmail(email)}`);
+  console.log(`[provision] COMPLETE — "${bizName}" | id: ${newBusiness.id} | number: ${maskPhone(twilioNumber)} | email: ${maskEmail(email)}`);
 }
 
 // ─── ROUTE: Stripe webhook ────────────────────────────────────────────────────
