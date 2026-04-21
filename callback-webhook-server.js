@@ -203,12 +203,15 @@ async function provisionBusiness({ businessName, industry, phone, email, clerkUs
   let purchased;
   try {
     purchased = await twilioClient.incomingPhoneNumbers.create({
-      phoneNumber:  selectedNumber,
-      voiceUrl:     `${RAILWAY_URL}/webhook/incoming-call`,
-      voiceMethod:  'POST',
-      smsUrl:       `${RAILWAY_URL}/webhook/sms-reply`,
-      smsMethod:    'POST',
-      friendlyName: `CallBackAI — ${bizName}`,
+      phoneNumber:          selectedNumber,
+      addressSid:           process.env.TWILIO_ADDRESS_SID,
+      voiceUrl:             `${RAILWAY_URL}/webhook/incoming-call`,
+      voiceMethod:          'POST',
+      statusCallback:       `${RAILWAY_URL}/webhook/call-status`,
+      statusCallbackMethod: 'POST',
+      smsUrl:               `${RAILWAY_URL}/webhook/sms-reply`,
+      smsMethod:            'POST',
+      friendlyName:         `CallBackAI — ${bizName}`,
     });
   } catch (err) {
     console.error(`[provision] STEP 2 FAILED — Twilio purchase error: ${err.message}`, err);
