@@ -914,6 +914,14 @@ function goTo(n) {
   window.scrollTo(0, 0);
 }
 
+// ── Enter key support ─────────────────────────────────────────────────────────
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Enter') return;
+  if (step === 1) step1Next();
+  else if (step === 2) step2CollectCredentials();
+  else if (step === 3) step3Pay();
+});
+
 function isValidEmail(e) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 }
