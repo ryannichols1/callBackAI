@@ -977,7 +977,15 @@ app.post('/api/onboard', async (req, res) => {
       mode:               'subscription',
       locale:             'en-GB',
       customer_email:     email,
-      line_items:         [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
+      line_items: [{
+        price_data: {
+          currency:     'eur',
+          product_data: { name: 'CallBack AI' },
+          unit_amount:  9900,
+          recurring:    { interval: 'month' },
+        },
+        quantity: 1,
+      }],
       subscription_data:  { trial_period_days: 14 },
       success_url:        'https://callbackai.ie/callback-onboarding.html?success=true&session_id={CHECKOUT_SESSION_ID}',
       cancel_url:         'https://callbackai.ie/callback-onboarding.html?cancelled=true',
