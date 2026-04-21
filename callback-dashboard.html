@@ -468,6 +468,142 @@ body {
 .setup-done-btn:hover { opacity: 0.88; }
 .setup-done-btn:disabled { opacity: 0.5; cursor: default; }
 
+/* ── Hamburger (mobile only) ── */
+.hamburger {
+  display: none;
+  position: fixed;
+  top: 20px; left: 16px;
+  z-index: 200;
+  width: 44px; height: 44px;
+  border: none;
+  background: var(--ink);
+  color: #fff;
+  border-radius: 8px;
+  font-size: 20px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* ── Sidebar overlay (mobile) ── */
+#sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 99;
+}
+#sidebar-overlay.visible { display: block; }
+
+/* ── Messages inbox ── */
+.msg-inbox-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  position: relative;
+  transition: background 0.12s;
+}
+.msg-inbox-item:last-child { border-bottom: none; }
+.msg-inbox-item:hover { background: #fdfcfa; }
+.msg-inbox-item.unread { background: #f0f7ff; }
+.msg-inbox-item.unread:hover { background: #e8f2ff; }
+.unread-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #1a6fd4;
+  flex-shrink: 0;
+}
+.msg-inbox-info { flex: 1; min-width: 0; }
+.msg-inbox-num {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+.msg-inbox-preview {
+  font-size: 12.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.msg-inbox-time {
+  font-size: 11px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+/* ── Test call feedback ── */
+#testCallFeedback {
+  font-size: 12px;
+  margin-top: 6px;
+  min-height: 16px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .hamburger { display: flex; }
+
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+  }
+  .sidebar.open { transform: translateX(0); }
+
+  .main {
+    margin-left: 0;
+    padding: 72px 16px 32px; /* room for hamburger */
+  }
+
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+
+  .topbar { flex-wrap: wrap; gap: 10px; }
+
+  .call-actions { flex-wrap: wrap; }
+
+  /* Full-screen conversation on mobile */
+  .conversation-panel {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    display: none;
+    flex-direction: column;
+    background: var(--bg);
+    overflow: hidden;
+  }
+  .conversation-panel.mobile-open { display: flex !important; }
+  .conv-messages { flex: 1; max-height: none; }
+  .conv-reply { position: sticky; bottom: 0; }
+  .conv-close-btn { display: flex; }
+}
+
+@media (max-width: 480px) {
+  .stats-row { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat-value { font-size: 24px; }
+  .onboard-card { padding: 20px 14px; }
+}
+
+/* Close button for mobile conversation */
+.conv-close-btn {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+  border: none;
+  width: 100%;
+  text-align: left;
+}
+
 /* ── Conversation thread ── */
 .call-item { cursor: pointer; }
 .call-item.expanded { background: #fdfcfa; }
@@ -640,6 +776,8 @@ body {
 
 <!-- Dashboard -->
 <div id="dashboard">
+  <button class="hamburger" onclick="toggleSidebar()" aria-label="Open menu">☰</button>
+  <div id="sidebar-overlay" onclick="toggleSidebar()"></div>
   <div class="layout">
 
     <aside class="sidebar">
@@ -667,12 +805,18 @@ body {
       </div>
       <nav class="nav">
         <div class="nav-section">Main</div>
-        <div class="nav-item active">
+        <div class="nav-item active" id="nav-calls" onclick="showView('calls')">
           Missed Calls
           <span class="nav-badge" id="navBadge" style="display:none"></span>
         </div>
+        <div class="nav-item" id="nav-messages" onclick="showView('messages')">
+          Messages
+          <span class="nav-badge" id="msgBadge" style="display:none"></span>
+        </div>
       </nav>
       <div class="sidebar-footer">
+        <button class="signout-btn" id="testCallBtn" onclick="testCall()" style="margin-bottom:8px;background:rgba(255,77,28,0.15);border-color:rgba(255,77,28,0.3);color:#ff7a52">Test your setup</button>
+        <p id="testCallFeedback"></p>
         <button class="signout-btn" onclick="signOut()">Sign out</button>
       </div>
     </aside>
@@ -756,11 +900,24 @@ body {
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">Incoming Calls</div>
+      <!-- View: Missed Calls -->
+      <div id="view-calls">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Incoming Calls</div>
+          </div>
+          <div id="callList"><div class="empty-state">Loading calls...</div></div>
         </div>
-        <div id="callList"><div class="empty-state">Loading calls...</div></div>
+      </div>
+
+      <!-- View: Messages inbox -->
+      <div id="view-messages" style="display:none">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Conversations</div>
+          </div>
+          <div id="msgList"><div class="empty-state">No conversations yet.</div></div>
+        </div>
       </div>
     </main>
 
@@ -770,6 +927,15 @@ body {
 <script>
 const API = 'https://callbackai-production.up.railway.app';
 const _t0  = Date.now();
+
+// ── Module-level state ────────────────────────────────────────────────────────
+let _allCalls    = [];   // cache updated on every poll
+let _authToken   = '';
+let _bizId       = '';
+let _bizEmail    = '';
+let _seenMsgIds  = new Set(); // IDs we've already notified about
+let _unreadCount = 0;
+let _currentView = 'calls';
 
 // Show a permanent red bar at the top of the page AND stop the spinner.
 // Nothing should spin forever — every code path must call this or show().
@@ -932,7 +1098,22 @@ async function loadDashboard(clerk) {
   const badge = document.getElementById('navBadge');
   if (missedCount > 0) { badge.textContent = missedCount; badge.style.display = 'inline-block'; }
 
+  // Store module-level state for polling, test-call, etc.
+  _authToken = token;
+  _bizId     = biz.id;
+  _bizEmail  = email;
+  _allCalls  = calls;
+
+  // Seed seenMsgIds with all messages already loaded so we only notify about NEW ones
+  calls.forEach(c => (c.messages || []).forEach(m => _seenMsgIds.add(m.id)));
+
   renderCalls(calls, biz.id, token);
+  renderMessages();
+  updateUnreadBadge();
+
+  // Request browser notification permission and start polling
+  requestNotificationPermission();
+  setInterval(pollForNewMessages, 30_000);
 }
 
 // ── Setup banner ──────────────────────────────────────────────────────────────
@@ -1032,6 +1213,7 @@ function renderCalls(calls, bizId, token) {
         + '<div class="call-actions"><span class="status-tag ' + c.status + '">' + c.status + '</span>' + convertBtn + '</div>'
       + '</div>'
       + '<div class="conversation-panel" id="conv-' + c.id + '">'
+        + '<button class="conv-close-btn" onclick="closeConversation(\'' + c.id + '\')">← Back to calls</button>'
         + '<div class="conv-messages" id="' + msgsId + '">' + bubbles + '</div>'
         + '<div class="conv-reply">'
           + '<textarea class="conv-input" id="' + inputId + '" placeholder="Type a reply..." rows="1"'
@@ -1045,14 +1227,24 @@ function renderCalls(calls, bizId, token) {
 }
 
 function toggleConversation(callId) {
-  const panel = document.getElementById('conv-' + callId);
-  const item  = document.getElementById('call-' + callId);
-  const isOpen = panel.style.display === 'block';
-  panel.style.display = isOpen ? 'none' : 'block';
-  item.classList.toggle('expanded', !isOpen);
-  if (!isOpen) {
+  const panel  = document.getElementById('conv-' + callId);
+  const item   = document.getElementById('call-' + callId);
+  const isOpen = panel.style.display === 'block' || panel.classList.contains('mobile-open');
+  const mobile = window.innerWidth <= 768;
+
+  if (isOpen) {
+    panel.style.display = 'none';
+    panel.classList.remove('mobile-open');
+    item.classList.remove('expanded');
+  } else {
+    panel.style.display = mobile ? '' : 'block';
+    if (mobile) panel.classList.add('mobile-open');
+    item.classList.add('expanded');
     const msgs = document.getElementById('msgs-' + callId);
     msgs.scrollTop = msgs.scrollHeight;
+    // Mark messages in this conversation as seen
+    const c = _allCalls.find(c => c.id === callId);
+    if (c) { c.messages.forEach(m => _seenMsgIds.add(m.id)); updateUnreadBadge(); }
   }
 }
 
@@ -1118,6 +1310,165 @@ async function markConverted(callId, btn, token) {
   } catch (e) {
     btn.disabled = false; btn.textContent = 'Mark Converted';
   }
+}
+
+function closeConversation(callId) {
+  const panel = document.getElementById('conv-' + callId);
+  const item  = document.getElementById('call-' + callId);
+  panel.style.display = 'none';
+  panel.classList.remove('mobile-open');
+  item.classList.remove('expanded');
+}
+
+// ── View switching ────────────────────────────────────────────────────────────
+function showView(view) {
+  _currentView = view;
+  document.getElementById('view-calls').style.display    = view === 'calls'    ? 'block' : 'none';
+  document.getElementById('view-messages').style.display = view === 'messages' ? 'block' : 'none';
+  document.getElementById('nav-calls').classList.toggle('active',    view === 'calls');
+  document.getElementById('nav-messages').classList.toggle('active', view === 'messages');
+  // Close sidebar on mobile after nav
+  if (window.innerWidth <= 768) toggleSidebar();
+}
+
+// ── Messages inbox ────────────────────────────────────────────────────────────
+function maskNumber(num) {
+  if (!num || num.length < 8) return num || 'Unknown';
+  return num.slice(0, 4) + '***' + num.slice(-4);
+}
+
+function renderMessages() {
+  const listEl = document.getElementById('msgList');
+  if (!listEl) return;
+
+  const withMsgs = _allCalls
+    .filter(c => c.messages && c.messages.length > 0)
+    .map(c => {
+      const sorted = c.messages.slice().sort((a, b) => new Date(b.sent_at) - new Date(a.sent_at));
+      return { ...c, _latest: sorted[0] };
+    })
+    .sort((a, b) => new Date(b._latest.sent_at) - new Date(a._latest.sent_at));
+
+  if (!withMsgs.length) {
+    listEl.innerHTML = '<div class="empty-state">No conversations yet.</div>';
+    return;
+  }
+
+  listEl.innerHTML = withMsgs.map(c => {
+    const isUnread  = c._latest.direction === 'inbound' && !_seenMsgIds.has(c._latest.id);
+    const maskedNum = maskNumber(c.caller_number);
+    const preview   = esc((c._latest.body || '').slice(0, 70));
+    const timeStr   = fmtTime(c._latest.sent_at);
+    return '<div class="msg-inbox-item' + (isUnread ? ' unread' : '') + '" onclick="openFromInbox(\'' + c.id + '\')">'
+      + (isUnread ? '<div class="unread-dot"></div>' : '<div style="width:8px;flex-shrink:0"></div>')
+      + '<div class="msg-inbox-info">'
+        + '<div class="msg-inbox-num">' + maskedNum + '</div>'
+        + '<div class="msg-inbox-preview">' + preview + '</div>'
+      + '</div>'
+      + '<div class="msg-inbox-time">' + timeStr + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+function openFromInbox(callId) {
+  // Switch to Calls view and open that conversation
+  showView('calls');
+  const panel = document.getElementById('conv-' + callId);
+  const item  = document.getElementById('call-' + callId);
+  if (panel && panel.style.display !== 'block') {
+    toggleConversation(callId);
+  }
+  if (item) item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  // Mark as seen
+  const c = _allCalls.find(c => c.id === callId);
+  if (c) c.messages.forEach(m => _seenMsgIds.add(m.id));
+  updateUnreadBadge();
+}
+
+function updateUnreadBadge() {
+  const count = _allCalls.reduce((acc, c) =>
+    acc + (c.messages || []).filter(m => m.direction === 'inbound' && !_seenMsgIds.has(m.id)).length
+  , 0);
+  _unreadCount = count;
+  const badge = document.getElementById('msgBadge');
+  if (badge) { badge.textContent = count; badge.style.display = count > 0 ? 'inline-block' : 'none'; }
+  document.title = count > 0 ? '(' + count + ') CallBack AI — Dashboard' : 'CallBack AI — Dashboard';
+}
+
+// ── Test call ─────────────────────────────────────────────────────────────────
+async function testCall() {
+  const btn      = document.getElementById('testCallBtn');
+  const feedback = document.getElementById('testCallFeedback');
+  btn.disabled = true;
+  btn.textContent = 'Calling...';
+  feedback.textContent = '';
+  feedback.style.color = '';
+  try {
+    const r = await fetch(API + '/api/test-call', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + _authToken, 'X-User-Email': _bizEmail },
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'HTTP ' + r.status);
+    feedback.textContent = 'Test call sent! Check your phone.';
+    feedback.style.color = '#fff';
+  } catch (e) {
+    feedback.textContent = 'Failed: ' + e.message;
+    feedback.style.color = '#ff7a52';
+  }
+  btn.disabled = false;
+  btn.textContent = 'Test your setup';
+  setTimeout(() => { feedback.textContent = ''; }, 6000);
+}
+
+// ── Mobile sidebar ────────────────────────────────────────────────────────────
+function toggleSidebar() {
+  const sidebar  = document.querySelector('.sidebar');
+  const overlay  = document.getElementById('sidebar-overlay');
+  const isOpen   = sidebar.classList.contains('open');
+  sidebar.classList.toggle('open', !isOpen);
+  overlay.classList.toggle('visible', !isOpen);
+}
+
+// ── Browser notifications + polling ──────────────────────────────────────────
+function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function showNotification(body) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const n = new Notification('New message — CallBack AI', { body });
+  n.onclick = () => { window.focus(); showView('messages'); n.close(); };
+}
+
+async function pollForNewMessages() {
+  if (!_authToken || !_bizId) return;
+  try {
+    const r = await fetch(API + '/api/businesses/' + _bizId + '/calls', {
+      headers: { 'Authorization': 'Bearer ' + _authToken },
+    });
+    if (!r.ok) return;
+    const freshCalls = await r.json();
+
+    let hasNew = false;
+    freshCalls.forEach(c => {
+      (c.messages || []).forEach(m => {
+        if (m.direction === 'inbound' && !_seenMsgIds.has(m.id)) hasNew = true;
+      });
+    });
+
+    _allCalls = freshCalls;
+    renderMessages();
+    updateUnreadBadge();
+    if (_currentView === 'calls') {
+      // Re-render call list silently to pick up new messages in threads
+      const list = document.getElementById('callList');
+      if (list && freshCalls.length) renderCalls(freshCalls, _bizId, _authToken);
+    }
+    if (hasNew) showNotification('New message from a customer — tap to view');
+  } catch (_) { /* silently ignore poll errors */ }
 }
 
 // ── Boot sequence ─────────────────────────────────────────────────────────────

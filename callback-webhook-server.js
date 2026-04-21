@@ -1020,25 +1020,47 @@ app.get('/healthz',           (req, res) => res.status(200).send('ok'));
 // server is reachable before the dashboard spends 8s waiting on /api/my-business
 app.get('/api/health-check', (req, res) => res.json({ ok: true }));
 
+// ─── ROUTE: Test call TwiML ──────────────────────────────────────────────────
+// Twilio fetches this URL when placing a test call. Returns the spoken message.
+
+app.post('/webhook/test-twiml', validateTwilioSignature, (req, res) => {
+  const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="alice">This is a test from CallBack AI. Your setup is working correctly. Goodbye!</Say>
+  <Hangup/>
+</Response>`;
+  res.type('text/xml').send(twiml);
+});
+
 // ─── ROUTE: Test call ────────────────────────────────────────────────────────
+// Requires auth — looks up the business owner's phone from Supabase,
+// then places a Twilio call to it using the test TwiML above.
 
-app.post('/api/test-call', async (req, res) => {
-  const { phone } = req.body;
+app.post('/api/test-call', requireAuth, async (req, res) => {
+  const email = req.headers['x-user-email'];
+  if (!email) return res.status(400).json({ error: 'Missing email header' });
 
-  if (!isValidPhone(phone.replace(/\s/g, ''))) {
-    return res.status(400).json({ error: 'Invalid phone' });
-  }
+  const { data: biz } = await supabase
+    .from('businesses')
+    .select('phone')
+    .eq('email', email)
+    .single();
+
+  if (!biz?.phone) return res.status(404).json({ error: 'Business not found' });
+
+  const phone = String(biz.phone).replace(/\s/g, '');
+  if (!isValidPhone(phone)) return res.status(400).json({ error: 'Invalid phone on record' });
 
   try {
     await twilioClient.calls.create({
-      url: 'https://callbackai-production.up.railway.app/webhook/incoming-call',
-      to: phone.replace(/\s/g, ''),
-      from: process.env.TWILIO_PHONE_NUMBER,
+      url:    `${RAILWAY_URL}/webhook/test-twiml`,
+      to:     phone,
+      from:   process.env.TWILIO_PHONE_NUMBER,
     });
-
+    console.log(`[test-call] initiated to ${maskPhone(phone)}`);
     res.json({ success: true });
-  } catch(err) {
-    console.error('Test call error:', err.message);
+  } catch (err) {
+    console.error('[test-call] error:', err.message);
     res.status(500).json({ error: 'Failed to place call' });
   }
 });
