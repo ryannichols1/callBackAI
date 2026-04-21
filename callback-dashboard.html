@@ -697,25 +697,33 @@ body {
             <div class="setup-number-value" id="bannerNumber">—</div>
           </div>
         </div>
-        <p style="font-size:13px;color:rgba(255,255,255,0.6);margin-bottom:16px">
-          Forward missed calls from your business number to this number. Takes 2 minutes.
+        <p style="font-size:13px;color:rgba(255,255,255,0.8);margin-bottom:12px;line-height:1.6">
+          The easiest way to set up call forwarding on any Irish network is to dial <code style="background:rgba(255,255,255,0.15);padding:1px 6px;border-radius:3px;font-size:12px" id="bannerUniversalCode">**61*[your number]#</code> from your phone and press call.
         </p>
         <div class="setup-instructions">
           <div class="setup-carrier">
             <strong>Vodafone Ireland</strong>
-            MyVodafone app → My Plan → Call settings → Divert calls → <em>When unanswered</em> → enter <span class="banner-num-inline">your number above</span>
+            Dial from your Vodafone phone and press call:<br>
+            <code class="banner-dial-code">**61*[your number]#</code><br>
+            This sets up unanswered call forwarding instantly.
           </div>
           <div class="setup-carrier">
             <strong>Three Ireland</strong>
-            My3 app → Account → Call settings → Call divert → <em>No answer</em> → enter <span class="banner-num-inline">your number above</span>
+            Dial from your Three phone and press call:<br>
+            <code class="banner-dial-code">**61*[your number]#</code><br>
+            This sets up unanswered call forwarding instantly.
           </div>
           <div class="setup-carrier">
             <strong>Eir</strong>
-            Dial from your phone: <code id="bannerEirCode">*61*[your number]#</code>
+            Dial from your phone and press call:<br>
+            <code class="banner-dial-code">**61*[your number]#</code><br>
+            This sets up unanswered call forwarding instantly.
           </div>
           <div class="setup-carrier">
             <strong>Landline / Other</strong>
-            Dial from your phone: <code id="bannerLandlineCode">**61*[your number]#</code>
+            Dial from your landline and press call:<br>
+            <code class="banner-dial-code">**61*[your number]#</code><br>
+            Or call your provider and ask them to set up unanswered call forwarding to your CallBack AI number.
           </div>
         </div>
         <button class="setup-done-btn" id="setupDoneBtn" onclick="dismissSetupBanner()">
@@ -936,14 +944,11 @@ function showSetupBanner(twilioNumber, token, email) {
   if (!banner) return;
   const num = twilioNumber || '';
   document.getElementById('bannerNumber').textContent = num;
-  // Fill in the dial codes for Eir and landline
-  document.getElementById('bannerEirCode').textContent = `*61*${num}#`;
-  document.getElementById('bannerLandlineCode').textContent = `**61*${num}#`;
-  // Replace generic "your number above" text in the Vodafone/Three cards
-  document.querySelectorAll('.banner-num-inline').forEach(el => {
-    el.textContent = num;
-    el.style.fontWeight = '700';
-    el.style.color = '#ff4d1c';
+  // Populate all dial codes with the real number
+  const dialCode = `**61*${num}#`;
+  document.getElementById('bannerUniversalCode').textContent = dialCode;
+  document.querySelectorAll('.banner-dial-code').forEach(el => {
+    el.textContent = dialCode;
   });
   banner.classList.remove('hidden');
   // Store for the dismiss handler
