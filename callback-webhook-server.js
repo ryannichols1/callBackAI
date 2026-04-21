@@ -974,9 +974,8 @@ app.post('/api/onboard', async (req, res) => {
 
   try {
     const session = await stripe.checkout.sessions.create({
-      mode:               'subscription',
-      locale:             'en-GB',
-      customer_email:     email,
+      mode:              'subscription',
+      customer_email:    email,
       line_items: [{
         price_data: {
           currency:     'eur',
@@ -986,9 +985,9 @@ app.post('/api/onboard', async (req, res) => {
         },
         quantity: 1,
       }],
-      subscription_data:  { trial_period_days: 14 },
-      success_url:        'https://callbackai.ie/callback-onboarding.html?success=true&session_id={CHECKOUT_SESSION_ID}',
-      cancel_url:         'https://callbackai.ie/callback-onboarding.html?cancelled=true',
+      subscription_data: { trial_period_days: 14 },
+      success_url:       'https://callbackai.ie/callback-onboarding.html?success=true&session_id={CHECKOUT_SESSION_ID}',
+      cancel_url:        'https://callbackai.ie/callback-onboarding.html?cancelled=true',
       metadata: {
         businessName: bizName,
         industry:     isValidIndustry(industry) ? industry : 'general',
