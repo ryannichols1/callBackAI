@@ -517,35 +517,24 @@ async function getBusinessByTwilioNumber(twilioNumber) {
 
 async function generateSMS(business) {
   const industry = isValidIndustry(business.industry) ? business.industry : 'general';
-  const tone     = INDUSTRY_TONES[industry];
   const name     = safeName(business.name);
 
   if (business.custom_sms_template) {
-    return business.custom_sms_template.slice(0, 320).replace('{{business_name}}', name);
+    return business.custom_sms_template.slice(0, 160).replace('{{business_name}}', name);
   }
 
-  // Caller number intentionally NOT passed to Claude — no need to expose it
-  const prompt = `A customer just called ${name} and missed the call.
+  // Industry-specific opening SMS — static templates, no AI needed.
+  // Each is under 160 chars and ends with a clear call-to-action.
+  const INITIAL_SMS = {
+    trades:     `Hi, sorry we missed your call at ${name}! Are you looking for a quote or is it an urgent job? Reply here and we'll get back to you fast.`,
+    dental:     `Hi, sorry we missed your call at ${name}! Would you like to book an appointment? Reply here and we'll sort it out.`,
+    salon:      `Hi, sorry we missed your call at ${name}! Looking to book a treatment or check availability? Reply here!`,
+    realestate: `Hi, sorry we missed your call at ${name}! Are you looking to buy, sell or rent? Reply here and we'll be right with you.`,
+    restaurant: `Hi, sorry we missed your call at ${name}! Looking to make a reservation? Reply here and we'll get you sorted.`,
+    general:    `Hi, sorry we missed your call at ${name}! How can we help? Reply here and we'll get back to you shortly.`,
+  };
 
-Write a single SMS reply. Rules:
-- Must mention "${name}" by name
-- Apologise for missing the call
-- Ask how you can help
-- Under 160 characters total
-- Sound like a real person, not a bot
-- Do NOT mention prices, services, or any specific details
-- Do NOT use emojis
-
-Example style: "Hi, sorry we missed your call at ${name}! How can we help you today?"
-
-Return ONLY the SMS text. No quotes, no explanation.`;
-
-  if (!anthropic) throw new Error('Anthropic client not initialised');
-  const response = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001', max_tokens: 80,
-    messages: [{ role: 'user', content: prompt }],
-  });
-  return response.content[0].text.trim().slice(0, 160);
+  return INITIAL_SMS[industry].slice(0, 160);
 }
 
 
@@ -623,12 +612,21 @@ function buildAiSystemPrompt(bizName, bizIndustry) {
     general:    'a local business',
   }[industry];
 
+  const industryContext = {
+    trades:     'Help the customer describe the job (type of work, location, urgency). Do not quote prices — say the owner will assess and call back to confirm.',
+    dental:     'Help the customer book or enquire about an appointment (checkup, treatment, emergency). Do not state availability — say the team will confirm times.',
+    salon:      'Help the customer book a treatment or check availability (haircut, colour, nails, etc.). Do not confirm slots — say the team will check the diary.',
+    realestate: 'Find out if they are buying, selling or renting, and any key details (area, budget range, property type). Do not make promises about listings or valuations.',
+    restaurant: 'Help with a reservation — ask for date, time, party size and any dietary needs. Do not confirm availability — say the team will confirm the booking.',
+    general:    'Find out what the customer needs and gather enough detail so the owner can call back and help them properly.',
+  }[industry];
+
   return `You are a helpful assistant for ${name}, ${industryDesc} in Ireland.
-A customer just missed a call and you are following up via SMS.
-Your job is to find out what they need and help them.
+A customer missed a call from ${name} and you are following up via SMS on their behalf.
+${industryContext}
 Be warm, friendly and professional.
-Keep replies short and conversational — under 160 characters where possible.
-Never make up prices, availability or specific promises.
+Keep every reply short and conversational — under 160 characters where possible.
+Never make up specific prices, times or availability — always say the owner will confirm details.
 Never claim to be human if asked directly — say you are an AI assistant for ${name}.
 If the customer wants to book or needs urgent help, say the owner will call them back shortly.`;
 }
