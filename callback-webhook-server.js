@@ -875,11 +875,16 @@ app.post('/webhook/call-status', validateTwilioSignature, async (req, res) => {
     return res.status(400).send('Bad Request');
   }
 
-  const wasMissed =
-    ['no-answer', 'busy', 'failed'].includes(callStatus) ||
-    ['no-answer', 'busy', 'failed'].includes(dialCallStatus) ||
-    (callStatus === 'completed' && dialCallStatus === undefined);
-  if (!wasMissed) return res.type('text/xml').send('<Response/>');
+  const status       = callStatus;
+  const callDuration = req.body.CallDuration;
+  const isShortCompleted = status === 'completed' && parseInt(callDuration || '0') < 30;
+  const isMissed = ['no-answer', 'busy', 'failed'].includes(status);
+
+  console.log(`[call-status] status=${status} | duration=${callDuration}s | isShortCompleted=${isShortCompleted} | isMissed=${isMissed}`);
+
+  if (!isMissed && !isShortCompleted) {
+    return res.sendStatus(200);
+  }
 
   await new Promise(resolve => setTimeout(resolve, Math.random() * 500));
 
