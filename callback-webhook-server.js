@@ -942,6 +942,60 @@ app.post('/api/calls/:callId/convert', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
+// ─── ROUTE: Owner reply to customer ──────────────────────────────────────────
+// Sends an SMS from the business owner directly to the customer and logs it.
+
+app.post('/api/calls/:callId/reply', requireAuth, async (req, res) => {
+  if (!isValidUUID(req.params.callId)) return res.status(400).json({ error: 'Invalid ID' });
+
+  const { message } = req.body;
+  if (!message || typeof message !== 'string' || !message.trim()) {
+    return res.status(400).json({ error: 'Message is required' });
+  }
+  const body = message.trim().slice(0, 1600);
+
+  // Get call to confirm it exists and get the customer number
+  const { data: call, error: callError } = await supabase
+    .from('calls')
+    .select('id, caller_number, business_id')
+    .eq('id', req.params.callId)
+    .single();
+
+  if (callError || !call) return res.status(404).json({ error: 'Call not found' });
+
+  // Verify the business belongs to the requesting user (ownership check)
+  const email = req.headers['x-user-email'];
+  const { data: biz } = await supabase
+    .from('businesses')
+    .select('id, twilio_number')
+    .eq('id', call.business_id)
+    .eq('email', email)
+    .single();
+
+  if (!biz) return res.status(403).json({ error: 'Forbidden' });
+
+  // Send SMS via Twilio
+  try {
+    const from = biz.twilio_number || process.env.TWILIO_PHONE_NUMBER;
+    await twilioClient.messages.create({ body, from, to: call.caller_number });
+    console.log(`[owner-reply] SMS sent | call: ${call.id} | to: ${maskPhone(call.caller_number)}`);
+  } catch (err) {
+    console.error('[owner-reply] Twilio error:', err.message);
+    return res.status(500).json({ error: 'Failed to send SMS' });
+  }
+
+  // Log in messages table
+  const { data: msg, error: msgError } = await supabase
+    .from('messages')
+    .insert({ call_id: call.id, direction: 'outbound', sent_by: 'owner', body })
+    .select('id, sent_at')
+    .single();
+
+  if (msgError) console.error('[owner-reply] message log failed:', msgError.message);
+
+  res.json({ success: true, message: msg || null });
+});
+
 // ─── ROUTE 5: Get calls for business (auth required) ─────────────────────────
 
 app.get('/api/businesses/:businessId/calls', requireAuth, async (req, res) => {
@@ -949,7 +1003,7 @@ app.get('/api/businesses/:businessId/calls', requireAuth, async (req, res) => {
 
   const { data, error } = await supabase
     .from('calls')
-    .select('id, caller_number, caller_name, status, created_at, messages(id, direction, body, sent_at)')
+    .select('id, caller_number, caller_name, status, created_at, messages(id, direction, body, sent_by, sent_at)')
     .eq('business_id', req.params.businessId)
     .order('created_at', { ascending: false })
     .limit(50);

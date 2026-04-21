@@ -468,6 +468,106 @@ body {
 .setup-done-btn:hover { opacity: 0.88; }
 .setup-done-btn:disabled { opacity: 0.5; cursor: default; }
 
+/* ── Conversation thread ── */
+.call-item { cursor: pointer; }
+.call-item.expanded { background: #fdfcfa; }
+
+.conversation-panel {
+  display: none;
+  border-top: 1px solid var(--border);
+  background: #f7f5f1;
+}
+.conv-messages {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.msg-row { display: flex; flex-direction: column; }
+.msg-row.inbound  { align-items: flex-start; }
+.msg-row.outbound { align-items: flex-end; }
+
+.msg-meta {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 3px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.msg-bubble {
+  max-width: 72%;
+  padding: 9px 13px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+.msg-row.inbound .msg-bubble {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--ink);
+  border-bottom-left-radius: 3px;
+}
+.msg-row.outbound .msg-bubble {
+  background: var(--ink);
+  color: #fff;
+  border-bottom-right-radius: 3px;
+}
+.msg-row.outbound.owner .msg-bubble { background: var(--accent); }
+.msg-time {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.conv-reply {
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  background: var(--surface);
+}
+.conv-input {
+  flex: 1;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-family: 'Epilogue', sans-serif;
+  font-size: 13.5px;
+  color: var(--ink);
+  background: var(--bg);
+  outline: none;
+  resize: none;
+  min-height: 40px;
+  max-height: 100px;
+  transition: border-color 0.2s;
+}
+.conv-input:focus { border-color: var(--ink); }
+.conv-send-btn {
+  padding: 9px 18px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-family: 'Epilogue', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+.conv-send-btn:hover { opacity: 0.85; }
+.conv-send-btn:disabled { opacity: 0.4; cursor: default; }
+.conv-empty {
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+  padding: 12px 0;
+}
+
 /* ── Error banner ── */
 .error-banner {
   background: #fde8e3;
@@ -867,27 +967,131 @@ async function dismissSetupBanner() {
   banner.classList.add('hidden');
 }
 
+// HTML-escape helper — prevents XSS when inserting message bodies into the DOM
+function esc(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function fmtTime(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleTimeString('en-IE', { hour: '2-digit', minute: '2-digit' });
+}
+
 function renderCalls(calls, bizId, token) {
   const list = document.getElementById('callList');
   if (!calls.length) {
     list.innerHTML = '<div class="empty-state">No calls yet. Once your number is forwarded, missed calls will appear here.</div>';
     return;
   }
+
   list.innerHTML = calls.map(c => {
     const letter  = (c.caller_name || c.caller_number || '?')[0].toUpperCase();
-    const display = c.caller_name || c.caller_number || 'Unknown';
+    const display = esc(c.caller_name || c.caller_number || 'Unknown');
     const time    = new Date(c.created_at).toLocaleString('en-IE', {
       day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-    const btn = c.status !== 'converted'
-      ? '<button class="convert-btn" onclick="markConverted(\'' + c.id + '\',this,\'' + token + '\')">Mark Converted</button>'
+    const convertBtn = c.status !== 'converted'
+      ? '<button class="convert-btn" onclick="event.stopPropagation();markConverted(\'' + c.id + '\',this,\'' + token + '\')">Mark Converted</button>'
       : '';
-    return '<div class="call-item" id="call-' + c.id + '">'
-      + '<div class="call-avatar">' + letter + '</div>'
-      + '<div class="call-info"><div class="call-number">' + display + '</div>'
-      + '<div class="call-time">' + time + '</div></div>'
-      + '<div class="call-actions"><span class="status-tag ' + c.status + '">' + c.status + '</span>' + btn + '</div>'
-      + '</div>';
+
+    // Sort messages ascending by sent_at
+    const msgs = (c.messages || []).slice().sort((a, b) =>
+      new Date(a.sent_at) - new Date(b.sent_at));
+
+    const bubbles = msgs.length
+      ? msgs.map(m => {
+          const isOwner = m.direction === 'outbound' && m.sent_by === 'owner';
+          const label   = m.direction === 'inbound' ? 'Customer' : (isOwner ? 'You' : 'AI');
+          const rowCls  = m.direction === 'inbound' ? 'inbound' : ('outbound' + (isOwner ? ' owner' : ''));
+          return '<div class="msg-row ' + rowCls + '">'
+            + '<div class="msg-meta">' + label + '</div>'
+            + '<div class="msg-bubble">' + esc(m.body) + '</div>'
+            + '<div class="msg-time">' + fmtTime(m.sent_at) + '</div>'
+            + '</div>';
+        }).join('')
+      : '<div class="conv-empty">No messages yet.</div>';
+
+    const inputId  = 'input-'  + c.id;
+    const btnId    = 'sndbtn-' + c.id;
+    const msgsId   = 'msgs-'   + c.id;
+
+    return (
+      '<div class="call-item" id="call-' + c.id + '" onclick="toggleConversation(\'' + c.id + '\')">'
+        + '<div class="call-avatar">' + letter + '</div>'
+        + '<div class="call-info"><div class="call-number">' + display + '</div>'
+        + '<div class="call-time">' + time + '</div></div>'
+        + '<div class="call-actions"><span class="status-tag ' + c.status + '">' + c.status + '</span>' + convertBtn + '</div>'
+      + '</div>'
+      + '<div class="conversation-panel" id="conv-' + c.id + '">'
+        + '<div class="conv-messages" id="' + msgsId + '">' + bubbles + '</div>'
+        + '<div class="conv-reply">'
+          + '<textarea class="conv-input" id="' + inputId + '" placeholder="Type a reply..." rows="1"'
+          + ' onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();sendReply(\'' + c.id + '\',\'' + token + '\',\'' + inputId + '\',\'' + msgsId + '\',\'' + btnId + '\')}"></textarea>'
+          + '<button class="conv-send-btn" id="' + btnId + '"'
+          + ' onclick="sendReply(\'' + c.id + '\',\'' + token + '\',\'' + inputId + '\',\'' + msgsId + '\',\'' + btnId + '\')">Send</button>'
+        + '</div>'
+      + '</div>'
+    );
   }).join('');
+}
+
+function toggleConversation(callId) {
+  const panel = document.getElementById('conv-' + callId);
+  const item  = document.getElementById('call-' + callId);
+  const isOpen = panel.style.display === 'block';
+  panel.style.display = isOpen ? 'none' : 'block';
+  item.classList.toggle('expanded', !isOpen);
+  if (!isOpen) {
+    const msgs = document.getElementById('msgs-' + callId);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+}
+
+async function sendReply(callId, token, inputId, msgsId, btnId) {
+  const input = document.getElementById(inputId);
+  const msgs  = document.getElementById(msgsId);
+  const btn   = document.getElementById(btnId);
+  const text  = input.value.trim();
+  if (!text) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+
+  try {
+    const r = await fetch(API + '/api/calls/' + callId + '/reply', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token,
+      },
+      body: JSON.stringify({ message: text }),
+    });
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      throw new Error(d.error || 'HTTP ' + r.status);
+    }
+
+    // Optimistically append the sent message
+    const now = new Date().toLocaleTimeString('en-IE', { hour: '2-digit', minute: '2-digit' });
+    // Remove "No messages yet" placeholder if present
+    const empty = msgs.querySelector('.conv-empty');
+    if (empty) empty.remove();
+    msgs.insertAdjacentHTML('beforeend',
+      '<div class="msg-row outbound owner">'
+        + '<div class="msg-meta">You</div>'
+        + '<div class="msg-bubble">' + esc(text) + '</div>'
+        + '<div class="msg-time">' + now + '</div>'
+      + '</div>'
+    );
+    msgs.scrollTop = msgs.scrollHeight;
+    input.value = '';
+  } catch (e) {
+    alert('Failed to send: ' + e.message);
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Send';
 }
 
 async function markConverted(callId, btn, token) {
