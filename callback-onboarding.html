@@ -34,7 +34,8 @@ body {
 
 /* ── Nav ──────────────────────────────────────────────────────────────────── */
 nav {
-  padding: 18px 40px;
+  padding: 0 40px 0 0;
+  height: 84px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -43,10 +44,9 @@ nav {
 }
 
 .nav-logo {
-  font-family: 'Fraunces', serif;
-  font-weight: 900;
-  font-size: 20px;
-  letter-spacing: -0.03em;
+  display: flex;
+  align-items: center;
+  align-self: stretch;
   text-decoration: none;
   color: var(--ink);
 }
@@ -435,7 +435,7 @@ nav {
 
 /* ── Responsive ───────────────────────────────────────────────────────────── */
 @media (max-width: 600px) {
-  nav { padding: 16px 20px; }
+  nav { padding: 0 20px 0 0; height: 72px; }
   .trust-strip { font-size: 11px; }
   .onboard-wrap { padding: 20px 12px 48px; }
   .onboard-card { padding: 28px 20px; border-radius: 12px; }
@@ -446,7 +446,7 @@ nav {
 <body>
 
 <nav>
-  <a href="index.html" class="nav-logo"><svg width="190" height="48" viewBox="0 0 680 200" role="img">
+  <a href="index.html" class="nav-logo"><svg width="286" height="84" viewBox="0 0 680 200" role="img">
 <defs><style>
   .logo-mark { fill: #ff4d1c; }
   .logo-text-callback { fill: #16120e; font-family: 'Georgia', serif; font-size: 48px; font-weight: 700; letter-spacing: -1px; }
