@@ -152,63 +152,104 @@ async function provisionBusiness({ businessName, industry, phone, email, clerkUs
   const bizName    = safeName(businessName);
   const cleanPhone = String(phone).replace(/\s/g, '');
 
-  console.log(`[provision] start | biz: "${bizName}" | email: ${maskEmail(email)}`);
+  console.log(`[provision] START | biz: "${bizName}" | email: ${maskEmail(email)} | phone: ${maskPhone(cleanPhone)}`);
+  console.log(`[provision] stripeCustomerId: ${stripeCustomerId || 'none'} | stripeSubscriptionId: ${stripeSubscriptionId || 'none'}`);
 
-  // Idempotency — don't double-provision if the webhook fires twice
-  const { data: existing } = await supabase
+  // ── Idempotency check ──────────────────────────────────────────────────────
+  console.log(`[provision] checking for existing record...`);
+  const { data: existing, error: existingError } = await supabase
     .from('businesses')
     .select('id, twilio_number')
     .eq('email', email)
     .maybeSingle();
 
+  if (existingError) {
+    console.error(`[provision] idempotency check FAILED — Supabase error: ${existingError.message}`, existingError);
+    throw new Error(`Idempotency check failed: ${existingError.message}`);
+  }
+
   if (existing) {
-    console.log(`[provision] idempotent — "${bizName}" already exists (id: ${existing.id})`);
+    console.log(`[provision] idempotent — "${bizName}" already exists (id: ${existing.id}) — skipping`);
     return;
   }
 
-  // Step 1: Find an available Irish Twilio number
-  const available = await twilioClient.availablePhoneNumbers('IE').local.list({ limit: 5 });
+  console.log(`[provision] no existing record found — proceeding with provisioning`);
+
+  // ── Step 1: Find an available Irish Twilio number ──────────────────────────
+  console.log(`[provision] STEP 1 — searching for available Irish Twilio number...`);
+  let available;
+  try {
+    available = await twilioClient.availablePhoneNumbers('IE').local.list({ limit: 5 });
+  } catch (err) {
+    console.error(`[provision] STEP 1 FAILED — Twilio availablePhoneNumbers error: ${err.message}`, err);
+    throw err;
+  }
+
   if (!available.length) throw new Error('No Irish (+353) Twilio numbers currently available');
   const selectedNumber = available[0].phoneNumber;
-  console.log(`[provision] found number ${maskPhone(selectedNumber)}`);
+  console.log(`[provision] STEP 1 OK — found number ${maskPhone(selectedNumber)}`);
 
-  // Step 2: Purchase and configure it
-  const purchased = await twilioClient.incomingPhoneNumbers.create({
-    phoneNumber:  selectedNumber,
-    voiceUrl:     `${RAILWAY_URL}/webhook/incoming-call`,
-    voiceMethod:  'POST',
-    smsUrl:       `${RAILWAY_URL}/webhook/sms-reply`,
-    smsMethod:    'POST',
-    friendlyName: `CallBackAI — ${bizName}`,
+  // ── Step 2: Purchase and configure the number ──────────────────────────────
+  console.log(`[provision] STEP 2 — purchasing Twilio number...`);
+  let purchased;
+  try {
+    purchased = await twilioClient.incomingPhoneNumbers.create({
+      phoneNumber:  selectedNumber,
+      voiceUrl:     `${RAILWAY_URL}/webhook/incoming-call`,
+      voiceMethod:  'POST',
+      smsUrl:       `${RAILWAY_URL}/webhook/sms-reply`,
+      smsMethod:    'POST',
+      friendlyName: `CallBackAI — ${bizName}`,
+    });
+  } catch (err) {
+    console.error(`[provision] STEP 2 FAILED — Twilio purchase error: ${err.message}`, err);
+    throw err;
+  }
+  console.log(`[provision] STEP 2 OK — Twilio number purchased | sid: ${purchased.sid}`);
+
+  // ── Step 3: Create the Supabase record ────────────────────────────────────
+  console.log(`[provision] STEP 3 — inserting Supabase record...`);
+  const insertPayload = {
+    name:                   bizName,
+    email:                  email,
+    industry:               isValidIndustry(industry) ? industry : 'general',
+    phone:                  cleanPhone,
+    twilio_number:          selectedNumber,
+    status:                 'active',
+    setup_completed:        false,
+    stripe_customer_id:     stripeCustomerId || null,
+    stripe_subscription_id: stripeSubscriptionId || null,
+  };
+  console.log(`[provision] STEP 3 — insert payload (no PII):`, {
+    name:                   insertPayload.name,
+    industry:               insertPayload.industry,
+    status:                 insertPayload.status,
+    setup_completed:        insertPayload.setup_completed,
+    stripe_customer_id:     insertPayload.stripe_customer_id ? 'SET' : 'null',
+    stripe_subscription_id: insertPayload.stripe_subscription_id ? 'SET' : 'null',
   });
-  console.log(`[provision] Twilio number purchased | sid: ${purchased.sid}`);
 
-  // Step 3: Create the Supabase record
   const { data: newBusiness, error: dbError } = await supabase
     .from('businesses')
-    .insert({
-      name:                   bizName,
-      industry:               isValidIndustry(industry) ? industry : 'general',
-      phone:                  cleanPhone,
-      email:                  email,
-      twilio_number:          selectedNumber,
-      clerk_user_id:          clerkUserId || null,
-      stripe_customer_id:     stripeCustomerId || null,
-      stripe_subscription_id: stripeSubscriptionId || null,
-      trial_ends_at:          new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-      setup_completed:        false,
-      status:                 'active',
-    })
+    .insert(insertPayload)
     .select('id')
     .single();
 
-  if (dbError) throw new Error(`Supabase insert failed: ${dbError.message}`);
-  console.log(`[provision] complete — "${bizName}" | id: ${newBusiness.id} | number: ${maskPhone(selectedNumber)}`);
+  if (dbError) {
+    console.error(`[provision] STEP 3 FAILED — Supabase insert error:`, dbError);
+    console.error(`[provision] STEP 3 error detail: code=${dbError.code} | hint=${dbError.hint} | details=${dbError.details}`);
+    throw new Error(`Supabase insert failed: ${dbError.message}`);
+  }
 
-  // Step 4: Welcome email (fire-and-forget)
+  console.log(`[provision] STEP 3 OK — record created | id: ${newBusiness.id}`);
+
+  // ── Step 4: Welcome email (fire-and-forget) ────────────────────────────────
+  console.log(`[provision] STEP 4 — sending welcome email...`);
   sendWelcomeEmail(email, bizName, selectedNumber).catch(err =>
-    console.error('[provision] welcome email failed:', err.message)
+    console.error('[provision] STEP 4 FAILED — welcome email error:', err.message)
   );
+
+  console.log(`[provision] COMPLETE — "${bizName}" | id: ${newBusiness.id} | number: ${maskPhone(selectedNumber)} | email: ${maskEmail(email)}`);
 }
 
 // ─── ROUTE: Stripe webhook ────────────────────────────────────────────────────
@@ -230,12 +271,21 @@ app.post('/webhook/stripe', express.raw({ type: 'application/json' }), async (re
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object;
+
+    // Log the full metadata so we can verify what Stripe actually sent
+    console.log('[stripe-webhook] session.id:', session.id);
+    console.log('[stripe-webhook] session.metadata:', JSON.stringify(session.metadata || {}));
+    console.log('[stripe-webhook] session.customer:', session.customer);
+    console.log('[stripe-webhook] session.subscription:', session.subscription);
+
     const { businessName, industry, phone, email, clerkUserId } = session.metadata || {};
 
     if (!email || !businessName || !phone) {
-      console.error('[stripe-webhook] missing metadata on session:', session.id);
+      console.error('[stripe-webhook] MISSING METADATA — email:', !!email, '| businessName:', !!businessName, '| phone:', !!phone, '| session:', session.id);
       return res.json({ received: true });
     }
+
+    console.log(`[stripe-webhook] metadata OK — passing to provisionBusiness | email: ${maskEmail(email)} | biz: "${businessName}"`);
 
     // Acknowledge immediately — provisioning runs asynchronously
     res.json({ received: true });
@@ -248,7 +298,10 @@ app.post('/webhook/stripe', express.raw({ type: 'application/json' }), async (re
       clerkUserId:          clerkUserId || null,
       stripeCustomerId:     session.customer,
       stripeSubscriptionId: session.subscription,
-    }).catch(err => console.error('[stripe-webhook] provisioning failed:', err.message));
+    }).catch(err => {
+      console.error('[stripe-webhook] provisionBusiness threw:', err.message);
+      console.error('[stripe-webhook] provisionBusiness stack:', err.stack);
+    });
 
   } else {
     res.json({ received: true });
