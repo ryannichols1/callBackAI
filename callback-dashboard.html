@@ -703,9 +703,9 @@ body {
         <div class="setup-instructions">
           <div class="setup-carrier">
             <strong>Vodafone Ireland</strong>
-            Dial from your Vodafone phone and press call:<br>
+            Try dialling from your phone and pressing call:<br>
             <code class="banner-dial-code">**61*[your number]#</code><br>
-            This sets up unanswered call forwarding instantly.
+            If this doesn't work on your Vodafone plan, call Vodafone on <strong>1907</strong> and ask them to set up 'unanswered call divert' to <span class="banner-dial-code-plain"></span>. Takes about 5 minutes.
           </div>
           <div class="setup-carrier">
             <strong>Three Ireland</strong>
@@ -949,6 +949,9 @@ function showSetupBanner(twilioNumber, token, email) {
   document.getElementById('bannerUniversalCode').textContent = dialCode;
   document.querySelectorAll('.banner-dial-code').forEach(el => {
     el.textContent = dialCode;
+  });
+  document.querySelectorAll('.banner-dial-code-plain').forEach(el => {
+    el.textContent = num;
   });
   banner.classList.remove('hidden');
   // Store for the dismiss handler
