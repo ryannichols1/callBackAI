@@ -64,7 +64,7 @@ require('dotenv').config();
 const REQUIRED_ENV = [
   'TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_PHONE_NUMBER',
   'ANTHROPIC_API_KEY', 'SUPABASE_URL', 'SUPABASE_SERVICE_KEY',
-  'STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID', 'CLERK_SECRET_KEY',
+  'STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID', 'STRIPE_WEBHOOK_SECRET', 'CLERK_SECRET_KEY',
 ];
 const OPTIONAL_ENV = [
   'RAILWAY_URL',   // fallback to hardcoded Railway domain if absent
@@ -143,6 +143,117 @@ const onboardLimiter  = rateLimit({ windowMs: 60 * 60_000, max: 5  }); // 5 sign
 app.use('/webhook',       webhookLimiter);
 app.use('/api',           apiLimiter);
 app.use('/api/onboard',   onboardLimiter);
+
+// ─── Provisioning helper ──────────────────────────────────────────────────────
+// Called by the Stripe webhook after checkout.session.completed.
+// Buys a Twilio number, creates the Supabase record, sends the welcome email.
+
+async function provisionBusiness({ businessName, industry, phone, email, clerkUserId, stripeCustomerId, stripeSubscriptionId }) {
+  const bizName    = safeName(businessName);
+  const cleanPhone = String(phone).replace(/\s/g, '');
+
+  console.log(`[provision] start | biz: "${bizName}" | email: ${maskEmail(email)}`);
+
+  // Idempotency — don't double-provision if the webhook fires twice
+  const { data: existing } = await supabase
+    .from('businesses')
+    .select('id, twilio_number')
+    .eq('email', email)
+    .maybeSingle();
+
+  if (existing) {
+    console.log(`[provision] idempotent — "${bizName}" already exists (id: ${existing.id})`);
+    return;
+  }
+
+  // Step 1: Find an available Irish Twilio number
+  const available = await twilioClient.availablePhoneNumbers('IE').local.list({ limit: 5 });
+  if (!available.length) throw new Error('No Irish (+353) Twilio numbers currently available');
+  const selectedNumber = available[0].phoneNumber;
+  console.log(`[provision] found number ${maskPhone(selectedNumber)}`);
+
+  // Step 2: Purchase and configure it
+  const purchased = await twilioClient.incomingPhoneNumbers.create({
+    phoneNumber:  selectedNumber,
+    voiceUrl:     `${RAILWAY_URL}/webhook/incoming-call`,
+    voiceMethod:  'POST',
+    smsUrl:       `${RAILWAY_URL}/webhook/sms-reply`,
+    smsMethod:    'POST',
+    friendlyName: `CallBackAI — ${bizName}`,
+  });
+  console.log(`[provision] Twilio number purchased | sid: ${purchased.sid}`);
+
+  // Step 3: Create the Supabase record
+  const { data: newBusiness, error: dbError } = await supabase
+    .from('businesses')
+    .insert({
+      name:                   bizName,
+      industry:               isValidIndustry(industry) ? industry : 'general',
+      phone:                  cleanPhone,
+      email:                  email,
+      twilio_number:          selectedNumber,
+      clerk_user_id:          clerkUserId || null,
+      stripe_customer_id:     stripeCustomerId || null,
+      stripe_subscription_id: stripeSubscriptionId || null,
+      trial_ends_at:          new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+      setup_completed:        false,
+      status:                 'active',
+    })
+    .select('id')
+    .single();
+
+  if (dbError) throw new Error(`Supabase insert failed: ${dbError.message}`);
+  console.log(`[provision] complete — "${bizName}" | id: ${newBusiness.id} | number: ${maskPhone(selectedNumber)}`);
+
+  // Step 4: Welcome email (fire-and-forget)
+  sendWelcomeEmail(email, bizName, selectedNumber).catch(err =>
+    console.error('[provision] welcome email failed:', err.message)
+  );
+}
+
+// ─── ROUTE: Stripe webhook ────────────────────────────────────────────────────
+// MUST be declared before express.json() — Stripe signature verification
+// requires the raw request buffer, not the parsed JSON object.
+
+app.post('/webhook/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.warn('[stripe-webhook] signature verification failed:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  console.log(`[stripe-webhook] event: ${event.type}`);
+
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object;
+    const { businessName, industry, phone, email, clerkUserId } = session.metadata || {};
+
+    if (!email || !businessName || !phone) {
+      console.error('[stripe-webhook] missing metadata on session:', session.id);
+      return res.json({ received: true });
+    }
+
+    // Acknowledge immediately — provisioning runs asynchronously
+    res.json({ received: true });
+
+    provisionBusiness({
+      businessName,
+      industry,
+      phone,
+      email,
+      clerkUserId:          clerkUserId || null,
+      stripeCustomerId:     session.customer,
+      stripeSubscriptionId: session.subscription,
+    }).catch(err => console.error('[stripe-webhook] provisioning failed:', err.message));
+
+  } else {
+    res.json({ received: true });
+  }
+});
 
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json({ limit: '10kb' }));
@@ -837,182 +948,53 @@ app.post('/api/test-call', async (req, res) => {
 });
 
 // ─── ROUTE: Onboard new business ─────────────────────────────────────────────
-// Full self-serve provisioning flow:
-//   1. Idempotency check (return existing record if email already onboarded)
-//   2. Create Stripe customer + subscription
-//   3. Provision a unique Irish Twilio number (+353)
-//   4. Configure the number's voice + SMS webhooks to point at this server
-//   5. Insert Supabase record
-//   6. Send welcome email with the number + forwarding instructions
-//
-// On any failure after Stripe is charged we cancel the subscription, delete
-// the Stripe customer, and release the Twilio number so the client isn't
-// left in a broken state and isn't billed.
+// Creates a Stripe Checkout Session and returns the hosted URL.
+// Actual provisioning (Twilio number, Supabase record, welcome email) happens
+// in /webhook/stripe once Stripe confirms payment via checkout.session.completed.
 
 app.post('/api/onboard', async (req, res) => {
-  const { paymentMethodId, business, clerkUserId } = req.body;
+  const { email, businessName, industry, phone, clerkUserId } = req.body;
 
-  // ── Input validation ─────────────────────────────────────────────────────
-  if (!paymentMethodId || !business?.name || !business?.email || !business?.phone) {
+  if (!email || !businessName || !phone) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
-  if (!isValidPmId(paymentMethodId)) {
-    return res.status(400).json({ error: 'Invalid payment method' });
-  }
-  if (!isValidEmail(business.email)) {
+  if (!isValidEmail(email)) {
     return res.status(400).json({ error: 'Invalid email address' });
   }
-  if (typeof business.name !== 'string' || business.name.length > 200) {
+  if (typeof businessName !== 'string' || businessName.length > 200) {
     return res.status(400).json({ error: 'Invalid business name' });
   }
-  const cleanPhone = business.phone.replace(/\s/g, '');
+  const cleanPhone = String(phone).replace(/\s/g, '');
   if (!isValidPhone(cleanPhone)) {
     return res.status(400).json({ error: 'Invalid phone number' });
   }
 
-  const bizName = safeName(business.name);
-  console.log(`[onboard] start | biz: "${bizName}" | email: ${maskEmail(business.email)} | phone: ${maskPhone(cleanPhone)}`);
-
-  // ── Idempotency: if this email is already a client, return the existing record ──
-  // Prevents double-charging if the form is submitted twice.
-  const { data: existing } = await supabase
-    .from('businesses')
-    .select('id, twilio_number, stripe_subscription_id')
-    .eq('email', business.email)
-    .maybeSingle();
-
-  if (existing) {
-    console.log(`[onboard] idempotent — "${bizName}" already exists (id: ${existing.id})`);
-    return res.json({
-      success: true,
-      businessId: existing.id,
-      twilioNumber: existing.twilio_number,
-      alreadyExists: true,
-    });
-  }
-
-  // Resources to clean up if anything goes wrong after they're created
-  let customer      = null;
-  let subscription  = null;
-  let twilioSid     = null; // Twilio IncomingPhoneNumber SID for release on failure
+  const bizName = safeName(businessName);
+  console.log(`[onboard] creating checkout session | biz: "${bizName}" | email: ${maskEmail(email)}`);
 
   try {
-    // ── Step 1: Stripe ───────────────────────────────────────────────────────
-    console.log(`[onboard] step 1/5: creating Stripe customer for "${bizName}"`);
-    customer = await stripe.customers.create({
-      email:            business.email,
-      name:             bizName,
-      phone:            cleanPhone,
-      payment_method:   paymentMethodId,
-      invoice_settings: { default_payment_method: paymentMethodId },
-      metadata:         { industry: business.industry || 'general' },
-    });
-
-    subscription = await stripe.subscriptions.create({
-      customer:          customer.id,
-      items:             [{ price: process.env.STRIPE_PRICE_ID }],
-      trial_period_days: 14,
-      payment_settings:  {
-        payment_method_types:             ['card'],
-        save_default_payment_method:      'on_subscription',
+    const session = await stripe.checkout.sessions.create({
+      mode:               'subscription',
+      customer_email:     email,
+      line_items:         [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
+      subscription_data:  { trial_period_days: 14 },
+      success_url:        'https://callbackai.ie/callback-onboarding.html?success=true&session_id={CHECKOUT_SESSION_ID}',
+      cancel_url:         'https://callbackai.ie/callback-onboarding.html?cancelled=true',
+      metadata: {
+        businessName: bizName,
+        industry:     isValidIndustry(industry) ? industry : 'general',
+        phone:        cleanPhone,
+        email,
+        clerkUserId:  clerkUserId || '',
       },
     });
-    console.log(`[onboard] step 1/5: Stripe OK — sub: ${subscription.id}`);
 
-    // ── Step 2: Search for an available Irish number ─────────────────────────
-    console.log(`[onboard] step 2/5: searching for available +353 Twilio number`);
-    const available = await twilioClient
-      .availablePhoneNumbers('IE')
-      .local.list({ limit: 5 });
-
-    if (!available.length) {
-      throw new Error('No Irish (+353) Twilio numbers are currently available. Please try again in a few minutes.');
-    }
-    const selectedNumber = available[0].phoneNumber;
-    console.log(`[onboard] step 2/5: found number ${maskPhone(selectedNumber)}`);
-
-    // ── Step 3: Purchase and configure the number ────────────────────────────
-    console.log(`[onboard] step 3/5: purchasing ${maskPhone(selectedNumber)}`);
-    const purchased = await twilioClient.incomingPhoneNumbers.create({
-      phoneNumber: selectedNumber,
-      voiceUrl:    `${RAILWAY_URL}/webhook/incoming-call`,
-      voiceMethod: 'POST',
-      smsUrl:      `${RAILWAY_URL}/webhook/sms-reply`,
-      smsMethod:   'POST',
-      friendlyName: `CallBackAI — ${bizName}`,
-    });
-    twilioSid = purchased.sid;
-    console.log(`[onboard] step 3/5: Twilio number purchased | sid: ${twilioSid}`);
-
-    // ── Step 4: Create the Supabase record ───────────────────────────────────
-    console.log(`[onboard] step 4/5: inserting Supabase record for "${bizName}"`);
-    const { data: newBusiness, error: dbError } = await supabase
-      .from('businesses')
-      .insert({
-        name:                  bizName,
-        industry:              isValidIndustry(business.industry) ? business.industry : 'general',
-        phone:                 cleanPhone,
-        email:                 business.email,
-        twilio_number:         selectedNumber,
-        clerk_user_id:         clerkUserId || null,
-        stripe_customer_id:    customer.id,
-        stripe_subscription_id: subscription.id,
-        trial_ends_at:         new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-        setup_completed:       false,
-        status:                'active',
-      })
-      .select('id')
-      .single();
-
-    if (dbError) {
-      throw new Error(`Supabase insert failed: ${dbError.message}`);
-    }
-    console.log(`[onboard] step 4/5: Supabase OK — business id: ${newBusiness.id}`);
-
-    // ── Step 5: Send welcome email ───────────────────────────────────────────
-    console.log(`[onboard] step 5/5: sending welcome email to ${maskEmail(business.email)}`);
-    // Fire-and-forget — never let email failure block the success response
-    sendWelcomeEmail(business.email, bizName, selectedNumber).catch(err =>
-      console.error('[onboard] welcome email failed:', err.message)
-    );
-
-    console.log(`[onboard] complete — "${bizName}" | id: ${newBusiness.id}`);
-    return res.json({
-      success:        true,
-      businessId:     newBusiness.id,
-      twilioNumber:   selectedNumber,
-      trialEndsAt:    subscription.trial_end,
-      subscriptionId: subscription.id,
-    });
+    console.log(`[onboard] checkout session created: ${session.id}`);
+    return res.json({ url: session.url });
 
   } catch (err) {
-    console.error(`[onboard] FAILED for "${bizName}": ${err.message}`);
-
-    // Clean up in reverse order of creation so no orphaned resources remain
-    if (twilioSid) {
-      await twilioClient.incomingPhoneNumbers(twilioSid).remove().catch(e =>
-        console.error('[onboard] cleanup: could not release Twilio number:', e.message)
-      );
-    }
-    if (subscription) {
-      await stripe.subscriptions.cancel(subscription.id).catch(e =>
-        console.error('[onboard] cleanup: could not cancel subscription:', e.message)
-      );
-    }
-    if (customer && !subscription) {
-      await stripe.customers.del(customer.id).catch(e =>
-        console.error('[onboard] cleanup: could not delete Stripe customer:', e.message)
-      );
-    }
-
-    if (err.type === 'StripeCardError') {
-      return res.status(400).json({ error: err.message });
-    }
-    // Expose a specific message for the "no numbers available" case
-    if (err.message?.startsWith('No Irish')) {
-      return res.status(503).json({ error: err.message });
-    }
-    return res.status(500).json({ error: 'Something went wrong. Please try again.' });
+    console.error(`[onboard] checkout session failed: ${err.message}`);
+    return res.status(500).json({ error: 'Could not create checkout session. Please try again.' });
   }
 });
 
