@@ -1109,6 +1109,15 @@ function verifyDone() {
     'background:var(--accent);border-color:var(--accent);color:#fff';
   setTimeout(() => goTo(5), 1200);
 }
+
+// Revolut Pay / redirect fallback — if the user paid but wasn't redirected back,
+// show a manual return banner after 10 seconds on any page without ?success=true.
+setTimeout(() => {
+  const params = new URLSearchParams(window.location.search);
+  if (!params.get('success')) {
+    document.body.insertAdjacentHTML('afterbegin', '<div style="position:fixed;top:0;left:0;right:0;background:#ff4d1c;color:white;padding:12px;text-align:center;z-index:9999">Payment complete? <a href="/callback-onboarding.html?success=true" style="color:white;font-weight:bold;text-decoration:underline">Click here to continue setup →</a></div>');
+  }
+}, 10000);
 </script>
 </body>
 </html>

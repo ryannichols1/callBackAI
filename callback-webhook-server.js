@@ -980,8 +980,13 @@ app.post('/api/onboard', async (req, res) => {
         price:    process.env.STRIPE_PRICE_ID,
         quantity: 1,
       }],
+      payment_method_options: {
+        revolut_pay: {
+          setup_future_usage: 'off_session',
+        },
+      },
       subscription_data: { trial_period_days: 14 },
-      success_url:       'https://callbackai.ie/callback-onboarding.html?success=true&session_id={CHECKOUT_SESSION_ID}',
+      success_url:       'https://callbackai.ie/callback-onboarding.html?success=true',
       cancel_url:        'https://callbackai.ie/callback-onboarding.html?cancelled=true',
       metadata: {
         businessName: bizName,
