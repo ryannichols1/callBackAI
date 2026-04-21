@@ -888,48 +888,60 @@ app.post('/webhook/call-status', validateTwilioSignature, async (req, res) => {
 
   console.log('[call-status] triggering SMS — status:', status, 'duration:', callDuration);
 
-  await new Promise(resolve => setTimeout(resolve, Math.random() * 500));
-
-  const business = await getBusinessByTwilioNumber(toNumber);
-  if (!business) return res.type('text/xml').send('<Response/>');
-
-  const { data: call } = await supabase
-    .from('calls')
-    .insert({
-      business_id: business.id,
-      caller_number: callerNumber,
-      call_sid: callSid,
-      status: 'missed',
-    })
-    .select()
-    .single();
-
-  if (!call) {
-    console.log('Duplicate CallSid, skipping:', callSid);
-    return res.type('text/xml').send('<Response/>');
-  }
-
-  let smsBody;
   try {
-    smsBody = await generateSMS(business);
-  } catch (err) {
-    console.error('Claude API error:', err.message);
-    smsBody = `Hi! Sorry we missed your call at ${safeName(business.name)}. What can we help you with? Reply here and we'll get back to you!`;
-  }
+    await new Promise(resolve => setTimeout(resolve, Math.random() * 500));
 
-  try {
+    console.log('[call-status] looking up business for number:', req.body.To);
+    const { data: bizData, error: bizError } = await supabase
+      .from('businesses')
+      .select('id, name, industry, custom_sms_template')
+      .eq('twilio_number', toNumber)
+      .single();
+    console.log('[call-status] business lookup result:', bizData ? bizData.name : 'NOT FOUND', bizError ? 'ERROR:' + bizError.message : '');
+
+    const business = (!bizError && bizData) ? bizData : null;
+    if (!business) return res.sendStatus(200);
+
+    const { data: call } = await supabase
+      .from('calls')
+      .insert({
+        business_id: business.id,
+        caller_number: callerNumber,
+        call_sid: callSid,
+        status: 'missed',
+      })
+      .select()
+      .single();
+
+    if (!call) {
+      console.log('[call-status] duplicate CallSid, skipping:', callSid);
+      return res.sendStatus(200);
+    }
+
+    console.log('[call-status] calling Claude API...');
+    let smsBody;
+    try {
+      smsBody = await generateSMS(business);
+      console.log('[call-status] Claude response received');
+    } catch (err) {
+      console.error('[call-status] Claude API error:', err.message);
+      smsBody = `Hi! Sorry we missed your call at ${safeName(business.name)}. What can we help you with? Reply here and we'll get back to you!`;
+    }
+
+    console.log('[call-status] sending SMS to:', req.body.From);
     const result = await twilioClient.messages.create({
       body: smsBody,
       from: toNumber,
       to: callerNumber,
     });
-    console.log('SMS sent — sid:', result.sid, 'status:', result.status);
-    if (call) await logMessage(call.id, 'outbound', smsBody);
-  } catch (err) {
-    console.error('Twilio SMS error:', err.code, err.message);
-  }
+    console.log('[call-status] SMS sent successfully — sid:', result.sid, 'status:', result.status);
+    await logMessage(call.id, 'outbound', smsBody);
 
-  res.type('text/xml').send('<Response/>');
+    res.sendStatus(200);
+  } catch (err) {
+    console.error('[call-status] FATAL ERROR:', err.message, err.stack);
+    res.sendStatus(500);
+  }
 });
 
 // ─── ROUTE 3: Inbound SMS reply ───────────────────────────────────────────────
