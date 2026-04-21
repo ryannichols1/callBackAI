@@ -1068,11 +1068,14 @@ async function step2CreateAccount() {
     console.log('[Clerk] step2: create() done. id=', clerkSignUpObj.id, 'status=', clerkSignUpObj.status);
     console.log('[step2] create() succeeded, status:', clerkSignUpObj.status);
 
-    // Recovery: clerk.client.signUp is the live reference; prefer it over the return value snapshot
-    if (!window._clerkSignUp || !window._clerkSignUp.id) {
-      window._clerkSignUp = clerk.client.signUp;
+    // If already complete (session created during signup), skip verification entirely
+    if (clerkSignUpObj.status === 'complete') {
+      console.log('[step2] signup complete — skipping verification, going to payment');
+      goTo(3);
+      return;
     }
 
+    // Only send verification email if email still needs confirming
     await window._clerkSignUp.prepareEmailAddressVerification({ strategy: 'email_code' });
     console.log('[Clerk] step2: verification email sent');
 
