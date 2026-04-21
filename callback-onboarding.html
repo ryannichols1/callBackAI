@@ -900,19 +900,17 @@ function resetClerk() {
   _clerkReadyPromise = null;
 }
 
-// Kick off pre-load immediately. If a previous dashboard session is active,
-// sign out and wait for Clerk to fully clear the session before proceeding.
+// At page load: if a dashboard session exists, sign out and hard-reload so Clerk
+// starts completely fresh. On the reloaded page clerk.user will be null and
+// signup will proceed normally.
 document.addEventListener('DOMContentLoaded', () => {
-  getClerk().then(async clerk => {
-    try {
-      if (clerk.user) {
-        await clerk.signOut({ redirectUrl: null });
-        console.log('signed out existing session');
-        // Wait for Clerk to clear the session
-        await new Promise(resolve => setTimeout(resolve, 500));
-        resetClerk();
-      }
-    } catch(e) { console.warn('signout error:', e); }
+  getClerk().then(async (clerk) => {
+    if (clerk.user) {
+      console.log('[onboarding] active session detected — signing out for fresh signup');
+      await clerk.signOut();
+      // Hard reload the page after signout so Clerk starts completely fresh
+      window.location.reload();
+    }
   });
 });
 
