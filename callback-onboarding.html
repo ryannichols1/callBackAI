@@ -895,11 +895,24 @@ function getClerk() {
   return _clerkReadyPromise;
 }
 
+// Resets the shared Clerk promise so the next getClerk() call re-loads a fresh instance.
+function resetClerk() {
+  _clerkReadyPromise = null;
+}
+
 // Kick off pre-load immediately. If a previous dashboard session is active,
-// sign out silently so onboarding always starts fresh.
+// sign out and wait for Clerk to fully clear the session before proceeding.
 document.addEventListener('DOMContentLoaded', () => {
   getClerk().then(async clerk => {
-    try { if (clerk.user) await clerk.signOut(); } catch(e) {}
+    try {
+      if (clerk.user) {
+        await clerk.signOut({ redirectUrl: null });
+        console.log('signed out existing session');
+        // Wait for Clerk to clear the session
+        await new Promise(resolve => setTimeout(resolve, 500));
+        resetClerk();
+      }
+    } catch(e) { console.warn('signout error:', e); }
   });
 });
 
@@ -1012,6 +1025,17 @@ async function step2CreateAccount() {
 
   btn.disabled = true;
   btn.textContent = 'Creating account...';
+
+  // Force fresh Clerk instance — sign out any session that crept back in after page load
+  try {
+    const existingClerk = await getClerk();
+    if (existingClerk.user) {
+      console.log('[Clerk] step2: stale session detected — signing out before create()');
+      await existingClerk.signOut({ redirectUrl: null });
+      await new Promise(resolve => setTimeout(resolve, 500));
+      resetClerk();
+    }
+  } catch(e) { console.warn('[Clerk] step2 pre-signout error:', e); }
 
   let clerk;
   try {
