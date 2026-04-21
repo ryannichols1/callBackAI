@@ -525,24 +525,27 @@ async function generateSMS(business) {
   }
 
   // Caller number intentionally NOT passed to Claude — no need to expose it
-  const prompt = `${tone}
+  const prompt = `A customer just called ${name} and missed the call.
 
-A customer just called ${name} and the call went unanswered.
-
-Write a SHORT, warm SMS reply (max 55 words).
+Write a single SMS reply. Rules:
+- Must mention "${name}" by name
 - Apologise for missing the call
-- Ask what they need help with
-- Feel human, not robotic
-- End with a clear invitation to reply
+- Ask how you can help
+- Under 160 characters total
+- Sound like a real person, not a bot
+- Do NOT mention prices, services, or any specific details
+- Do NOT use emojis
 
-Return ONLY the SMS text. No quotes, no preamble.`;
+Example style: "Hi, sorry we missed your call at ${name}! How can we help you today?"
+
+Return ONLY the SMS text. No quotes, no explanation.`;
 
   if (!anthropic) throw new Error('Anthropic client not initialised');
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514', max_tokens: 120,
+    model: 'claude-haiku-4-5-20251001', max_tokens: 80,
     messages: [{ role: 'user', content: prompt }],
   });
-  return response.content[0].text.trim();
+  return response.content[0].text.trim().slice(0, 160);
 }
 
 
