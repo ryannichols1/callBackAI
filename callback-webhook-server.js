@@ -975,7 +975,7 @@ app.post('/api/onboard', async (req, res) => {
   try {
     const session = await stripe.checkout.sessions.create({
       mode:               'subscription',
-      currency:           'eur',
+      locale:             'en-IE',
       customer_email:     email,
       line_items:         [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
       subscription_data:  { trial_period_days: 14 },
