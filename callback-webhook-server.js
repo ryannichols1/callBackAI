@@ -154,12 +154,15 @@ async function provisionBusiness({ businessName, industry, phone, email, clerkUs
 
   console.log(`[provision] START | biz: "${bizName}" | email: ${maskEmail(email)} | phone: ${maskPhone(cleanPhone)}`);
   console.log(`[provision] stripeCustomerId: ${stripeCustomerId || 'none'} | stripeSubscriptionId: ${stripeSubscriptionId || 'none'}`);
+  console.log('[provision] checking for existing business with email:', maskEmail(email));
 
   // ── Idempotency check ──────────────────────────────────────────────────────
-  console.log(`[provision] checking for existing record...`);
+  // Only skip if the business exists AND already has a stripe_subscription_id.
+  // A row without a subscription means a previous provision failed mid-way —
+  // allow re-provisioning so the customer isn't left without a number.
   const { data: existing, error: existingError } = await supabase
     .from('businesses')
-    .select('id, twilio_number')
+    .select('id, twilio_number, stripe_subscription_id')
     .eq('email', email)
     .maybeSingle();
 
@@ -168,12 +171,18 @@ async function provisionBusiness({ businessName, industry, phone, email, clerkUs
     throw new Error(`Idempotency check failed: ${existingError.message}`);
   }
 
-  if (existing) {
-    console.log(`[provision] idempotent — "${bizName}" already exists (id: ${existing.id}) — skipping`);
-    return;
+  console.log(`[provision] idempotency check result: existing=${existing ? existing.id : 'none'} | stripe_subscription_id=${existing?.stripe_subscription_id || 'none'}`);
+
+  if (existing && existing.stripe_subscription_id) {
+    console.log(`[provision] idempotent — already provisioned: ${existing.id}`);
+    return existing;
   }
 
-  console.log(`[provision] no existing record found — proceeding with provisioning`);
+  if (existing && !existing.stripe_subscription_id) {
+    console.log(`[provision] found existing row without subscription — re-provisioning (id: ${existing.id})`);
+  } else {
+    console.log(`[provision] no existing record found — proceeding with provisioning`);
+  }
 
   // ── Step 1: Find an available Irish Twilio number ──────────────────────────
   console.log(`[provision] STEP 1 — searching for available Irish Twilio number...`);
@@ -208,7 +217,7 @@ async function provisionBusiness({ businessName, industry, phone, email, clerkUs
   console.log(`[provision] STEP 2 OK — Twilio number purchased | sid: ${purchased.sid}`);
 
   // ── Step 3: Create the Supabase record ────────────────────────────────────
-  console.log(`[provision] STEP 3 — inserting Supabase record...`);
+  console.log(`[provision] STEP 3 — attempting Supabase INSERT for email: ${maskEmail(email)}`);
   const insertPayload = {
     name:                   bizName,
     email:                  email,
