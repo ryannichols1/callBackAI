@@ -1104,23 +1104,6 @@ function verifyDone() {
     'background:var(--accent);border-color:var(--accent);color:#fff';
   setTimeout(() => goTo(5), 1200);
 }
-
-// Revolut Pay / redirect fallback — if the user paid but wasn't redirected back,
-// show a manual return banner after 10 seconds only if they have biz data in
-// sessionStorage (meaning they went through the flow and hit Stripe) but landed
-// back without ?success=true or ?cancelled=true.
-setTimeout(() => {
-  const params = new URLSearchParams(window.location.search);
-  const hasBiz = sessionStorage.getItem('onboarding_biz');
-  const isSuccess = params.get('success');
-  const isCancelled = params.get('cancelled');
-
-  // Only show if we have biz data but no success/cancelled param
-  // This means they came back from Stripe without a redirect
-  if (hasBiz && !isSuccess && !isCancelled) {
-    document.body.insertAdjacentHTML('afterbegin', '<div style="position:fixed;top:0;left:0;right:0;background:#ff4d1c;color:white;padding:12px;text-align:center;z-index:9999">Payment complete? <a href="/callback-onboarding.html?success=true" style="color:white;font-weight:bold;text-decoration:underline">Click here to continue setup →</a></div>');
-  }
-}, 10000);
 </script>
 </body>
 </html>
