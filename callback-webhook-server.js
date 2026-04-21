@@ -409,87 +409,70 @@ async function sendWelcomeEmail(toEmail, bizName, twilioNumber) {
   }
 
   const displayNumber = twilioNumber || 'your CallBack AI number';
+  const dialCode      = twilioNumber ? `**61*${twilioNumber}#` : '**61*[your number]#';
+  const name          = safeName(bizName);
 
-  // Irish carrier call-forwarding instructions
-  const forwardingInstructions = `
-HOW TO SET UP CALL FORWARDING (takes 2 minutes):
+  const textBody = `Hi ${name},
 
-Your CallBack AI number: ${displayNumber}
+You're all set up on CallBack AI. Here's everything you need to get started.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-VODAFONE IRELAND
-Open My Vodafone app → My Plan → Call settings → Divert calls
-→ "When unanswered" → enter ${displayNumber}
+Your dedicated number is:
+${displayNumber}
 
-THREE IRELAND
-Open My3 app → Account → Call settings → Call divert
-→ "No answer" → enter ${displayNumber}
+To activate it, dial this from your phone and press call:
+${dialCode}
 
-EIR
-Dial this from your phone: *61*${displayNumber}#
+That's it. Takes about 10 seconds. Once that's done, any call you miss will get an automatic text back within 14 seconds.
 
-LANDLINE / OTHER NETWORKS
-Dial this from your phone: **61*${displayNumber}#
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+If the dial code doesn't work on your network, just call your provider and ask them to set up unanswered call divert to your CallBack AI number. They can do it in a few minutes.
 
-Once set up, any missed call will automatically get a CallBack AI text.
-Your dashboard: https://callbackai.ie/callback-dashboard.html
-  `.trim();
+Your dashboard is at callbackai.ie/callback-dashboard.html — that's where you'll see all your missed calls and conversations.
 
-  const htmlBody = `
-<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px">
-  <h1 style="color:#16120e;font-size:24px;margin-bottom:4px">You're live on CallBack AI!</h1>
-  <p style="color:#666;margin-bottom:32px">Welcome, ${safeName(bizName)}. Follow the steps below to start recovering missed calls.</p>
+If you have any questions just reply to this email and I'll get back to you.
 
-  <div style="background:#f5f5f5;border-radius:8px;padding:20px;margin-bottom:24px;text-align:center">
-    <p style="color:#666;font-size:13px;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">Your CallBack AI number</p>
-    <p style="font-size:28px;font-weight:700;color:#ff4d1c;letter-spacing:.05em;margin:0">${displayNumber}</p>
-  </div>
+Ryan
+CallBack AI`.trim();
 
-  <h2 style="color:#16120e;font-size:16px;margin-bottom:12px">Set up call forwarding (2 minutes)</h2>
-  <p style="color:#666;font-size:14px;margin-bottom:16px">Forward missed calls from your business number to your CallBack AI number:</p>
+  const htmlBody = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#ffffff">
+<div style="max-width:560px;margin:0 auto;padding:40px 24px;font-family:Georgia,'Times New Roman',serif;font-size:16px;line-height:1.7;color:#1a1a1a">
 
-  <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:24px">
-    <tr style="background:#16120e;color:#fff">
-      <th style="padding:10px 14px;text-align:left;border-radius:6px 0 0 0">Network</th>
-      <th style="padding:10px 14px;text-align:left;border-radius:0 6px 0 0">Instructions</th>
-    </tr>
-    <tr style="background:#fff;border-bottom:1px solid #eee">
-      <td style="padding:10px 14px;font-weight:600">Vodafone Ireland</td>
-      <td style="padding:10px 14px">My Vodafone app → My Plan → Call settings → Divert calls → <em>When unanswered</em> → enter <strong>${displayNumber}</strong></td>
-    </tr>
-    <tr style="background:#fafafa;border-bottom:1px solid #eee">
-      <td style="padding:10px 14px;font-weight:600">Three Ireland</td>
-      <td style="padding:10px 14px">My3 app → Account → Call settings → Call divert → <em>No answer</em> → enter <strong>${displayNumber}</strong></td>
-    </tr>
-    <tr style="background:#fff;border-bottom:1px solid #eee">
-      <td style="padding:10px 14px;font-weight:600">Eir</td>
-      <td style="padding:10px 14px">Dial from your phone: <code style="background:#f0f0f0;padding:2px 6px;border-radius:3px">*61*${displayNumber}#</code></td>
-    </tr>
-    <tr style="background:#fafafa">
-      <td style="padding:10px 14px;font-weight:600">Landline / Other</td>
-      <td style="padding:10px 14px">Dial from your phone: <code style="background:#f0f0f0;padding:2px 6px;border-radius:3px">**61*${displayNumber}#</code></td>
-    </tr>
-  </table>
+  <p style="margin:0 0 24px">Hi ${name},</p>
 
-  <p style="color:#666;font-size:13px;margin-bottom:24px">Once set up, every missed call will get an automatic CallBack AI text within seconds.</p>
+  <p style="margin:0 0 24px">You're all set up on CallBack AI. Here's everything you need to get started.</p>
 
-  <a href="https://callbackai.ie/callback-dashboard.html"
-     style="display:inline-block;background:#ff4d1c;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px">
-    Open Your Dashboard
-  </a>
-</div>`;
+  <p style="margin:0 0 8px">Your dedicated number is:</p>
+  <p style="margin:0 0 24px;font-family:'Courier New',monospace;font-size:20px;font-weight:700;letter-spacing:0.04em;color:#1a1a1a">${displayNumber}</p>
+
+  <p style="margin:0 0 8px">To activate it, dial this from your phone and press call:</p>
+  <p style="margin:0 0 24px;font-family:'Courier New',monospace;font-size:20px;font-weight:700;letter-spacing:0.04em;color:#1a1a1a">${dialCode}</p>
+
+  <p style="margin:0 0 24px">That's it. Takes about 10 seconds. Once that's done, any call you miss will get an automatic text back within 14 seconds.</p>
+
+  <p style="margin:0 0 24px">If the dial code doesn't work on your network, just call your provider and ask them to set up unanswered call divert to your CallBack AI number. They can do it in a few minutes.</p>
+
+  <p style="margin:0 0 24px">Your dashboard is at <a href="https://callbackai.ie/callback-dashboard.html" style="color:#1a1a1a">callbackai.ie/callback-dashboard.html</a> — that's where you'll see all your missed calls and conversations.</p>
+
+  <p style="margin:0 0 24px">If you have any questions just reply to this email and I'll get back to you.</p>
+
+  <p style="margin:0">Ryan<br>CallBack AI</p>
+
+</div>
+</body>
+</html>`;
 
   try {
     const r = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from: 'CallBack AI <hello@callbackai.app>',
-        to:   [toEmail],
-        subject: "You're live on CallBack AI",
-        html: htmlBody,
-        text: forwardingInstructions,
+        from:    'Ryan at CallBack AI <hello@callbackai.app>',
+        to:      [toEmail],
+        subject: "You're live — here's what to do next",
+        html:    htmlBody,
+        text:    textBody,
       }),
     });
     if (!r.ok) {
