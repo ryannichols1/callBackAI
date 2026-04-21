@@ -1003,6 +1003,7 @@ function step1Next() {
 
 // ── Step 2: Create Clerk account ──────────────────────────────────────────────
 async function step2CreateAccount() {
+  console.log('[step2] function called');
   const btn    = document.getElementById('clerkSignUpBtn');
   const err    = document.getElementById('err-2');
   const pw     = document.getElementById('clerkPassword').value;
@@ -1039,6 +1040,7 @@ async function step2CreateAccount() {
   try {
     clerk = await getClerk();
     window._clerkInstance = clerk;
+    console.log('[step2] clerk.user:', clerk.user ? clerk.user.primaryEmailAddress?.emailAddress : 'null');
   } catch (e) {
     err.textContent = 'Could not load authentication. Please refresh and try again.';
     err.classList.add('show');
@@ -1057,12 +1059,14 @@ async function step2CreateAccount() {
 
   try {
     console.log('[Clerk] step2: calling signUp.create()...');
+    console.log('[step2] calling signUp.create() with email:', biz.email);
     clerkSignUpObj = await clerk.client.signUp.create({
       emailAddress: biz.email,
       password: pw,
     });
     window._clerkSignUp = clerk.client.signUp;
     console.log('[Clerk] step2: create() done. id=', clerkSignUpObj.id, 'status=', clerkSignUpObj.status);
+    console.log('[step2] create() succeeded, status:', clerkSignUpObj.status);
 
     // Recovery: clerk.client.signUp is the live reference; prefer it over the return value snapshot
     if (!window._clerkSignUp || !window._clerkSignUp.id) {
@@ -1077,6 +1081,8 @@ async function step2CreateAccount() {
     document.getElementById('clerkEmailSent').textContent = biz.email;
 
   } catch (e) {
+    console.log('[step2] ERROR:', e);
+    console.log('[step2] error codes:', e.errors?.map(x => x.code));
     console.error('[Clerk] step2 FAILED:', e.message, e);
     if (e.errors?.length) console.error('[Clerk] errors:', JSON.stringify(e.errors));
     let msg = 'Something went wrong. Please try again.';
