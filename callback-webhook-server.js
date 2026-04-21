@@ -977,12 +977,7 @@ app.post('/api/onboard', async (req, res) => {
       mode:              'subscription',
       customer_email:    email,
       line_items: [{
-        price_data: {
-          currency:     'eur',
-          product_data: { name: 'CallBack AI' },
-          unit_amount:  9900,
-          recurring:    { interval: 'month' },
-        },
+        price:    process.env.STRIPE_PRICE_ID,
         quantity: 1,
       }],
       subscription_data: { trial_period_days: 14 },
