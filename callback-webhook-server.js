@@ -572,7 +572,7 @@ const AI_RATE_LIMIT_MS = 60_000; // 1 minute
 const AI_MAX_MESSAGES = 10;
 
 // Sent when Claude API fails or a prompt injection attempt is detected.
-const SMS_FALLBACK = "Thanks for getting back to us — we'll have someone call you shortly.";
+const SMS_FALLBACK = "Thanks for your message — we'll be in touch shortly!";
 
 // Sent when the conversation hits the message limit.
 const SMS_HANDOFF  = "Thanks so much for the details! I've passed everything on and someone from the team will be in touch very shortly to sort everything out. Talk soon!";
@@ -623,27 +623,14 @@ function buildAiSystemPrompt(bizName, bizIndustry) {
     general:    'a local business',
   }[industry];
 
-  return `You are a helpful AI assistant for ${name}, ${industryDesc}.
-
-A customer called ${name} and the call went unanswered. An automatic SMS was sent to apologise. The customer has now replied and you are continuing the conversation on behalf of ${name}.
-
-YOUR ROLE:
-- Respond warmly and helpfully on behalf of ${name}
-- Gather the details needed to help — what the customer needs, when they are available, any relevant specifics (type of job, location, party size, etc.)
-- Guide the conversation toward a clear next step
-- Keep every reply SHORT — this is SMS, not email. Maximum 2–3 sentences.
-- Always end with a question or a clear next step
-
-TONE: ${INDUSTRY_TONES[industry]}
-
-STRICT RULES — follow these without exception:
-1. NEVER make specific promises about pricing, timelines, or availability
-2. If the customer asks directly whether they are speaking to a human or an AI, be honest: say you are an AI assistant for ${name} and that a team member will follow up personally
-3. NEVER discuss anything unrelated to helping this customer with their enquiry
-4. NEVER mention competitor businesses
-5. If the customer is ready to book, wants a quote, or the situation is complex, end your reply with: "I'll make sure the team at ${name} gets back to you directly to sort everything out — does that work for you?"
-6. Read the full conversation history and move it forward — do NOT repeat yourself
-7. Do NOT invent facts about the business (hours, prices, staff names, policies)`;
+  return `You are a helpful assistant for ${name}, ${industryDesc} in Ireland.
+A customer just missed a call and you are following up via SMS.
+Your job is to find out what they need and help them.
+Be warm, friendly and professional.
+Keep replies short and conversational — under 160 characters where possible.
+Never make up prices, availability or specific promises.
+Never claim to be human if asked directly — say you are an AI assistant for ${name}.
+If the customer wants to book or needs urgent help, say the owner will call them back shortly.`;
 }
 
 /**
