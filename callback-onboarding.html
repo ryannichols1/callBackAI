@@ -635,7 +635,7 @@ nav {
       <div class="error-msg" id="err-1">Please fill in all fields correctly.</div>
     </div>
 
-    <!-- Panel 2: Set password + email verification -->
+    <!-- Panel 2: Set password -->
     <div class="panel" id="panel-2">
       <div class="panel-title">Create your account</div>
       <p class="panel-sub">Choose a password for your CallBack AI dashboard.</p>
@@ -645,7 +645,7 @@ nav {
         <input type="email" id="clerkEmailDisplay" disabled>
       </div>
 
-      <div class="field" id="pw-field">
+      <div class="field">
         <label>Password</label>
         <div class="pw-wrap">
           <input type="password" id="clerkPassword" placeholder="At least 8 characters">
@@ -655,7 +655,7 @@ nav {
         </div>
       </div>
 
-      <div class="field" id="pw-confirm-field">
+      <div class="field">
         <label>Confirm Password</label>
         <div class="pw-wrap">
           <input type="password" id="clerkPasswordConfirm" placeholder="Repeat your password">
@@ -665,22 +665,8 @@ nav {
         </div>
       </div>
 
-      <!-- Verification section — hidden until account is created -->
-      <div id="verify-section" style="display:none">
-        <div class="verify-box">
-          <div class="verify-box-title">Check your email</div>
-          <div class="verify-box-sub">We sent a 6-digit code to <strong id="verifyEmailDisplay"></strong></div>
-          <div class="field" style="margin-bottom:8px">
-            <input type="text" id="verifyCode" placeholder="000000" inputmode="numeric" maxlength="6"
-              style="text-align:center;font-size:24px;letter-spacing:8px;font-weight:700">
-          </div>
-          <button class="btn-primary" id="verifyCodeBtn" onclick="step2VerifyCode()">Verify →</button>
-          <div class="resend-link" id="resendLinkWrap">Didn't get it? <a onclick="resendCode()">Resend code</a></div>
-        </div>
-      </div>
-
-      <button class="btn-primary" id="clerkSignUpBtn" onclick="step2CollectCredentials()">Continue →</button>
-      <button class="btn-ghost" onclick="resetStep2(); goTo(1)">← Back</button>
+      <button class="btn-primary" id="clerkSignUpBtn" onclick="step2CollectCredentials()">Continue to Payment →</button>
+      <button class="btn-ghost" onclick="goTo(1)">← Back</button>
 
       <div class="error-msg" id="err-2"></div>
     </div>
@@ -705,8 +691,27 @@ nav {
       <p class="fine-print">Payments processed securely by Stripe.</p>
     </div>
 
-    <!-- Panel 4: Setup wizard -->
+    <!-- Panel 4: Email verification (shown after payment, before setup wizard) -->
     <div class="panel" id="panel-4">
+      <div class="panel-title">Verify your email</div>
+      <p class="panel-sub">Payment confirmed! We need to verify your email before activating your account.</p>
+
+      <div class="verify-box">
+        <div class="verify-box-title">Check your email</div>
+        <div class="verify-box-sub">We sent a 6-digit code to <strong id="postPayVerifyEmail"></strong></div>
+        <div class="field" style="margin-bottom:8px">
+          <input type="text" id="postPayVerifyCode" placeholder="000000" inputmode="numeric" maxlength="6"
+            style="text-align:center;font-size:24px;letter-spacing:8px;font-weight:700">
+        </div>
+        <button class="btn-primary" id="postPayVerifyBtn" onclick="postPaymentVerifyCode()">Verify →</button>
+        <div class="resend-link" id="postPayResendWrap">Didn't get it? <a onclick="postPaymentResendCode()">Resend code</a></div>
+      </div>
+
+      <div class="error-msg" id="err-4"></div>
+    </div>
+
+    <!-- Panel 5: Setup wizard -->
+    <div class="panel" id="panel-5">
       <div class="panel-title">Activate in 2 minutes</div>
       <p class="panel-sub">Follow these steps to start recovering missed calls.</p>
 
@@ -802,8 +807,8 @@ nav {
       </div>
     </div>
 
-    <!-- Panel 5: Success -->
-    <div class="panel" id="panel-5">
+    <!-- Panel 6: Success -->
+    <div class="panel" id="panel-6">
       <div class="success-wrap">
         <div class="success-circle">✓</div>
         <div class="panel-title">You're all set!</div>
@@ -880,16 +885,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── Returning from Stripe checkout ────────────────────────────────────────
   if (params.get('success') === 'true') {
-    // Restore biz (includes email + password stored before redirect)
+    // Restore biz (includes email + password stored before Stripe redirect)
     const stored = sessionStorage.getItem('onboarding_biz');
     if (stored) { try { biz = JSON.parse(stored); } catch(e) {} }
     sessionStorage.removeItem('onboarding_biz');
     if (biz.name) document.getElementById('successName').textContent = biz.name;
-    // Create Clerk account now that payment is confirmed.
-    // Non-blocking — success panel shows immediately regardless of outcome.
-    createClerkAccount().catch(e => console.warn('[Clerk] post-payment creation error:', e));
-    goTo(5);
-    return; // skip Clerk signout — user is mid-flow
+    // Create Clerk account and route to verify (panel 4) or setup wizard (panel 5)
+    handlePaymentSuccess().catch(e => {
+      console.warn('[Clerk] handlePaymentSuccess error:', e);
+      goTo(5); // always advance so user isn't stuck
+    });
+    return; // skip Clerk signout check — user is mid-flow
   }
 
   if (params.get('cancelled') === 'true') {
@@ -948,12 +954,9 @@ function goTo(n) {
 document.addEventListener('keydown', function(e) {
   if (e.key !== 'Enter') return;
   if (step === 1) step1Next();
-  else if (step === 2) {
-    const verifySection = document.getElementById('verify-section');
-    if (verifySection.style.display !== 'none') step2VerifyCode();
-    else step2CollectCredentials();
-  }
+  else if (step === 2) step2CollectCredentials();
   else if (step === 3) step3Pay();
+  else if (step === 4) postPaymentVerifyCode();
 });
 
 function isValidEmail(e) {
@@ -988,9 +991,8 @@ function step1Next() {
   goTo(2);
 }
 
-// ── Step 2: Create account + send verification email ─────────────────────────
-async function step2CollectCredentials() {
-  const btn    = document.getElementById('clerkSignUpBtn');
+// ── Step 2: Collect credentials (pure — no Clerk API calls) ──────────────────
+function step2CollectCredentials() {
   const err    = document.getElementById('err-2');
   const pw     = document.getElementById('clerkPassword').value;
   const pwConf = document.getElementById('clerkPasswordConfirm').value;
@@ -1008,88 +1010,76 @@ async function step2CollectCredentials() {
     return;
   }
 
+  // Store password — included in sessionStorage before Stripe redirect
   biz.password = pw;
-  btn.disabled = true;
-  btn.textContent = 'Creating account...';
+  goTo(3);
+}
+
+// ── Post-payment: create Clerk account + route to verify or setup ─────────────
+// Called on ?success=true return from Stripe. Creates the Clerk account, then:
+// - if status !== 'complete': sends email code and shows panel 4 (verify)
+// - if status === 'complete': goes straight to panel 5 (setup wizard)
+// - if form_identifier_exists: account already exists, go straight to panel 5
+async function handlePaymentSuccess() {
+  if (!biz.email || !biz.password) {
+    console.warn('[Clerk] handlePaymentSuccess: missing email or password — skipping to setup');
+    goTo(5);
+    return;
+  }
 
   try {
     const clerk = await getClerk();
 
-    // If there's already an active session, sign out first so signUp.create() doesn't throw session_exists
+    // Sign out any stale session so signUp.create() doesn't throw session_exists
     if (clerk.user) {
-      console.log('[Clerk] existing session found before signup — signing out');
+      console.log('[Clerk] stale session on success return — signing out');
       await clerk.signOut();
       resetClerk();
-      await getClerk(); // re-init fresh
+      await getClerk();
     }
 
     const signUp = await clerk.client.signUp.create({
       emailAddress: biz.email,
-      password:     pw,
+      password:     biz.password,
     });
     clerkSignUpObj = signUp;
-    console.log('[Clerk] signUp.create status:', signUp.status);
+    console.log('[Clerk] post-payment signUp.create status:', signUp.status);
 
-    // status='complete' means Clerk doesn't require verification (rare on prod, common in dev)
     if (signUp.status === 'complete') {
-      console.log('[Clerk] status=complete — no verification needed, going to payment');
-      goTo(3);
+      console.log('[Clerk] status=complete — no verification needed');
+      goTo(5);
       return;
     }
 
-    // Send the 6-digit code to their email
+    // Send verification code and show panel 4
     await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
     console.log('[Clerk] verification email sent to', biz.email);
-
-    // Hide password fields and the continue button, show verification UI
-    document.getElementById('pw-field').style.display = 'none';
-    document.getElementById('pw-confirm-field').style.display = 'none';
-    btn.style.display = 'none';
-    document.getElementById('verifyEmailDisplay').textContent = biz.email;
-    document.getElementById('verify-section').style.display = 'block';
-    document.getElementById('verifyCode').focus();
+    document.getElementById('postPayVerifyEmail').textContent = biz.email;
+    goTo(4);
+    setTimeout(() => document.getElementById('postPayVerifyCode').focus(), 100);
 
   } catch (e) {
     const code = e.errors?.[0]?.code;
-    console.warn('[Clerk] step2CollectCredentials error:', code, e.message, e.errors);
-
-    if (code === 'session_exists') {
-      // Sign out and ask user to retry
-      try {
-        const clerk = await getClerk();
-        await clerk.signOut();
-        resetClerk();
-      } catch (signOutErr) {
-        console.warn('[Clerk] signOut after session_exists failed:', signOutErr.message);
-      }
-      err.textContent = 'A session conflict was resolved — please click Continue again.';
-      err.classList.add('show');
-      btn.disabled = false;
-      btn.textContent = 'Continue →';
-      return;
-    }
+    console.warn('[Clerk] handlePaymentSuccess error:', code, e.message);
 
     if (code === 'form_identifier_exists') {
-      err.textContent = 'An account with this email already exists. Please sign in to your dashboard instead.';
-      err.classList.add('show');
-      btn.disabled = false;
-      btn.textContent = 'Continue →';
+      // Account already exists — skip verification, go straight to setup
+      console.log('[Clerk] account already exists — proceeding to setup wizard');
+      goTo(5);
       return;
     }
 
-    err.textContent = e.errors?.[0]?.longMessage || e.message || 'Something went wrong. Please try again.';
-    err.classList.add('show');
-    btn.disabled = false;
-    btn.textContent = 'Continue →';
+    // On any other error, log it and still advance to setup so the user isn't blocked
+    console.error('[Clerk] unexpected error during post-payment account creation:', e.errors);
+    goTo(5);
   }
 }
 
-// ── Step 2: Verify the email code ─────────────────────────────────────────────
-async function step2VerifyCode() {
-  const codeInput = document.getElementById('verifyCode');
-  const code      = codeInput.value.trim();
-  const err       = document.getElementById('err-2');
-  const btn       = document.getElementById('verifyCodeBtn');
+// ── Panel 4: Verify email code (post-payment) ─────────────────────────────────
+async function postPaymentVerifyCode() {
+  const code = document.getElementById('postPayVerifyCode').value.trim();
+  const err  = document.getElementById('err-4');
+  const btn  = document.getElementById('postPayVerifyBtn');
 
   err.classList.remove('show');
 
@@ -1100,7 +1090,7 @@ async function step2VerifyCode() {
   }
 
   if (!clerkSignUpObj) {
-    err.textContent = 'Session expired — please go back and try again.';
+    err.textContent = 'Session expired — please refresh and try again.';
     err.classList.add('show');
     return;
   }
@@ -1110,13 +1100,11 @@ async function step2VerifyCode() {
 
   try {
     const result = await clerkSignUpObj.attemptEmailAddressVerification({ code });
-    console.log('[Clerk] verification result status:', result.status);
-    // Advance to payment regardless of status — verified is confirmed by no throw
-    goTo(3);
+    console.log('[Clerk] post-payment verification status:', result.status);
+    goTo(5);
   } catch (e) {
-    const errCode = e.errors?.[0]?.code;
-    const msg     = e.errors?.[0]?.longMessage || e.message || 'Invalid code. Please try again.';
-    console.warn('[Clerk] verification failed:', errCode, msg);
+    const msg = e.errors?.[0]?.longMessage || e.message || 'Invalid code. Please try again.';
+    console.warn('[Clerk] post-payment verification failed:', e.errors?.[0]?.code, msg);
     err.textContent = msg;
     err.classList.add('show');
     btn.disabled = false;
@@ -1124,14 +1112,14 @@ async function step2VerifyCode() {
   }
 }
 
-// ── Step 2: Resend verification code ─────────────────────────────────────────
-async function resendCode() {
-  const err      = document.getElementById('err-2');
-  const linkWrap = document.getElementById('resendLinkWrap');
+// ── Panel 4: Resend verification code (post-payment) ─────────────────────────
+async function postPaymentResendCode() {
+  const err      = document.getElementById('err-4');
+  const linkWrap = document.getElementById('postPayResendWrap');
   err.classList.remove('show');
 
   if (!clerkSignUpObj) {
-    err.textContent = 'Session expired — please go back and try again.';
+    err.textContent = 'Session expired — please refresh and try again.';
     err.classList.add('show');
     return;
   }
@@ -1140,50 +1128,11 @@ async function resendCode() {
     await clerkSignUpObj.prepareEmailAddressVerification({ strategy: 'email_code' });
     linkWrap.textContent = '✓ Code resent!';
     setTimeout(() => {
-      linkWrap.innerHTML = 'Didn\'t get it? <a onclick="resendCode()">Resend code</a>';
+      linkWrap.innerHTML = 'Didn\'t get it? <a onclick="postPaymentResendCode()">Resend code</a>';
     }, 3000);
   } catch (e) {
-    err.textContent = 'Could not resend code. Please go back and try again.';
+    err.textContent = 'Could not resend — please refresh the page.';
     err.classList.add('show');
-  }
-}
-
-// ── Step 2: Reset verification state (called when going back to step 1) ───────
-function resetStep2() {
-  clerkSignUpObj = null;
-  document.getElementById('verify-section').style.display = 'none';
-  document.getElementById('pw-field').style.display = '';
-  document.getElementById('pw-confirm-field').style.display = '';
-  document.getElementById('verifyCode').value = '';
-  document.getElementById('resendLinkWrap').innerHTML = 'Didn\'t get it? <a onclick="resendCode()">Resend code</a>';
-  const btn = document.getElementById('clerkSignUpBtn');
-  btn.style.display = '';
-  btn.disabled = false;
-  btn.textContent = 'Continue →';
-  document.getElementById('err-2').classList.remove('show');
-}
-
-// ── Create Clerk account (fallback — called after payment if step 2 was skipped) ──
-// form_identifier_exists is treated as success (account already created in step 2).
-async function createClerkAccount() {
-  if (!biz.email || !biz.password) {
-    console.warn('[Clerk] createClerkAccount: missing email or password — skipping');
-    return;
-  }
-  try {
-    const clerk = await getClerk();
-    const signUp = await clerk.client.signUp.create({
-      emailAddress: biz.email,
-      password:     biz.password,
-    });
-    console.log('[Clerk] post-payment account created — status:', signUp.status);
-  } catch (e) {
-    const code = e.errors?.[0]?.code;
-    if (code === 'form_identifier_exists') {
-      console.log('[Clerk] account already exists (created in step 2) — skipping');
-      return;
-    }
-    console.warn('[Clerk] post-payment account creation failed:', e.message, e.errors);
   }
 }
 
@@ -1273,7 +1222,7 @@ function verifyDone() {
   document.getElementById('wiz-4').classList.add('active');
   document.getElementById('wiz-4').querySelector('.wiz-num').style.cssText =
     'background:var(--accent);border-color:var(--accent);color:#fff';
-  setTimeout(() => goTo(5), 1200);
+  setTimeout(() => goTo(6), 1200);
 }
 
 // Revolut Pay / redirect fallback — if the user paid but wasn't redirected back,
