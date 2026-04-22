@@ -636,32 +636,20 @@ function buildAiSystemPrompt(bizName, bizIndustry) {
   const industry = isValidIndustry(bizIndustry) ? bizIndustry : 'general';
   const name     = safeName(bizName);
 
-  const industryDesc = {
-    trades:     'a local trades business (e.g. plumbing, electrical, or carpentry)',
-    dental:     'a dental clinic',
-    salon:      'a hair and beauty salon',
-    realestate: 'a property agency',
-    restaurant: 'a restaurant',
-    general:    'a local business',
+  const industryGoal = {
+    trades:     `Ask what job they need done and where. Do not quote prices — say ${name} will assess and call back to confirm.`,
+    dental:     `Ask if they'd like to book an appointment. Do not confirm availability — say the team at ${name} will confirm times.`,
+    salon:      `Ask what treatment they're interested in. Do not confirm slots — say the team at ${name} will check the diary.`,
+    realestate: `Ask if they're buying, selling or renting, and any key details. Do not make promises about listings or valuations.`,
+    restaurant: `Ask if they'd like to make a reservation — get date, time and party size. Do not confirm availability — say ${name} will confirm.`,
+    general:    `Ask how you can help and gather enough detail so the team at ${name} can call back.`,
   }[industry];
 
-  const industryContext = {
-    trades:     'Help the customer describe the job (type of work, location, urgency). Do not quote prices — say the owner will assess and call back to confirm.',
-    dental:     'Help the customer book or enquire about an appointment (checkup, treatment, emergency). Do not state availability — say the team will confirm times.',
-    salon:      'Help the customer book a treatment or check availability (haircut, colour, nails, etc.). Do not confirm slots — say the team will check the diary.',
-    realestate: 'Find out if they are buying, selling or renting, and any key details (area, budget range, property type). Do not make promises about listings or valuations.',
-    restaurant: 'Help with a reservation — ask for date, time, party size and any dietary needs. Do not confirm availability — say the team will confirm the booking.',
-    general:    'Find out what the customer needs and gather enough detail so the owner can call back and help them properly.',
-  }[industry];
-
-  return `You are a helpful assistant for ${name}, ${industryDesc} in Ireland.
-A customer missed a call from ${name} and you are following up via SMS on their behalf.
-${industryContext}
-Be warm, friendly and professional.
-Keep every reply short and conversational — under 160 characters where possible.
-Never make up specific prices, times or availability — always say the owner will confirm details.
-Never claim to be human if asked directly — say you are an AI assistant for ${name}.
-If the customer wants to book or needs urgent help, say the owner will call them back shortly.`;
+  return `You are the AI assistant for ${name}. A customer tried to call and you are following up by SMS.
+${industryGoal}
+Reply in 1–2 short sentences. Be warm and friendly.
+Never invent prices, times or availability — the owner will confirm all details.
+If asked directly, say you are an AI assistant for ${name}, not a human.`;
 }
 
 /**
@@ -814,7 +802,7 @@ async function processInboundSms(from, rawBody, toNumber) {
     if (!anthropic) throw new Error('Anthropic client not initialised');
     const response = await anthropic.messages.create({
       model:      'claude-haiku-4-5-20251001', // fast + cheap for SMS
-      max_tokens: 200,
+      max_tokens: 100,
       system:     fullSystem,
       messages:   claudeMessages,
     });
