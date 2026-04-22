@@ -136,13 +136,14 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Rate limiting — prevents SMS bombing and brute force
-const webhookLimiter  = rateLimit({ windowMs: 60_000,      max: 60 });
-const apiLimiter      = rateLimit({ windowMs: 60_000,      max: 30 });
-const onboardLimiter  = rateLimit({ windowMs: 60 * 60_000, max: 5  }); // 5 signups/hr/IP
-app.use('/webhook',       webhookLimiter);
-app.use('/api',           apiLimiter);
-app.use('/api/onboard',   onboardLimiter);
+// Rate limiting — /webhook/* routes are NOT rate limited.
+// They are already protected by Twilio signature validation (validateTwilioSignature)
+// which cryptographically verifies every request came from Twilio. Adding an IP-based
+// rate limiter on top risks blocking Twilio's shared webhook IPs during busy periods.
+const apiLimiter     = rateLimit({ windowMs: 60_000,      max: 30 });
+const onboardLimiter = rateLimit({ windowMs: 60 * 60_000, max: 5  }); // 5 signups/hr/IP
+app.use('/api',          apiLimiter);
+app.use('/api/onboard',  onboardLimiter);
 
 // ─── Provisioning helper ──────────────────────────────────────────────────────
 // Called by the Stripe webhook after checkout.session.completed.
