@@ -711,7 +711,7 @@ nav {
           <div class="wiz-desc">Choose your network and follow the instructions:</div>
 
           <div style="margin-top:10px;background:var(--green-soft);border:1px solid rgba(13,122,74,0.2);border-radius:8px;padding:11px 14px;font-size:13px;color:var(--green);line-height:1.6">
-            The easiest way on any Irish network: dial <strong>**61*+14783303514#</strong> from your phone and press call. Done in seconds.
+            The easiest way on any Irish network: dial <strong>**61*<span class="fwd-num">+14783303514</span>#</strong> from your phone and press call. Done in seconds.
           </div>
 
           <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px">
@@ -720,8 +720,8 @@ nav {
               <summary style="font-weight:600;font-size:14px;list-style:none">Vodafone Ireland</summary>
               <p style="font-size:13px;color:var(--muted);margin-top:8px;line-height:1.7">
                 Try dialling from your phone and pressing call:<br>
-                <strong>**61*+14783303514#</strong><br>
-                If this doesn't work on your Vodafone plan, call Vodafone on <strong>1907</strong> and ask them to set up 'unanswered call divert' to +14783303514. Takes about 5 minutes.
+                <strong>**61*<span class="fwd-num">+14783303514</span>#</strong><br>
+                If this doesn't work on your Vodafone plan, call Vodafone on <strong>1907</strong> and ask them to set up 'unanswered call divert' to <span class="fwd-num">+14783303514</span>. Takes about 5 minutes.
               </p>
             </details>
 
@@ -729,7 +729,7 @@ nav {
               <summary style="font-weight:600;font-size:14px;list-style:none">Three Ireland</summary>
               <p style="font-size:13px;color:var(--muted);margin-top:8px;line-height:1.7">
                 Dial from your Three phone and press call:<br>
-                <strong>**61*+14783303514#</strong><br>
+                <strong>**61*<span class="fwd-num">+14783303514</span>#</strong><br>
                 This sets up unanswered call forwarding instantly.
               </p>
             </details>
@@ -738,7 +738,7 @@ nav {
               <summary style="font-weight:600;font-size:14px;list-style:none">Eir / 48 / Other</summary>
               <p style="font-size:13px;color:var(--muted);margin-top:8px;line-height:1.7">
                 Dial from your phone and press call:<br>
-                <strong>**61*+14783303514#</strong><br>
+                <strong>**61*<span class="fwd-num">+14783303514</span>#</strong><br>
                 This sets up unanswered call forwarding instantly.
               </p>
             </details>
@@ -747,9 +747,9 @@ nav {
               <summary style="font-weight:600;font-size:14px;list-style:none">Landline (Eir / Virgin / Sky)</summary>
               <p style="font-size:13px;color:var(--muted);margin-top:8px;line-height:1.7">
                 Dial from your landline and press call:<br>
-                <strong>**61*+14783303514#</strong><br>
+                <strong>**61*<span class="fwd-num">+14783303514</span>#</strong><br>
                 You'll hear a confirmation tone. Or call your provider and ask them to set up
-                unanswered call forwarding to +14783303514.
+                unanswered call forwarding to <span class="fwd-num">+14783303514</span>.
               </p>
             </details>
 
@@ -860,6 +860,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (stored) { try { biz = JSON.parse(stored); } catch(e) {} }
     sessionStorage.removeItem('onboarding_biz');
     if (biz.name) document.getElementById('successName').textContent = biz.name;
+
+    // Apply any previously cached Twilio number immediately (e.g. after a page refresh)
+    const cachedNumber = sessionStorage.getItem('twilio_number');
+    if (cachedNumber) applyForwardingNumber(cachedNumber);
+
+    // Poll the server for the provisioned number — the Stripe webhook may still be running
+    if (biz.email) pollForTwilioNumber(biz.email);
+
     // Create Clerk account — fire-and-forget, setup wizard shows immediately
     createClerkAccount().catch(e => console.warn('[Clerk] post-payment creation error:', e));
     goTo(4);
@@ -1053,6 +1061,36 @@ async function step3Pay() {
     btn.disabled = false;
     btn.textContent = 'Continue to Payment →';
   }
+}
+
+// ── Forwarding number helpers ─────────────────────────────────────────────────
+// Update every .fwd-num span in panel 4 and cache the number for page refreshes.
+function applyForwardingNumber(num) {
+  document.querySelectorAll('.fwd-num').forEach(el => el.textContent = num);
+  sessionStorage.setItem('twilio_number', num);
+  biz.twilioNumber = num;
+}
+
+// Poll /api/lookup-number until the Stripe webhook has finished provisioning
+// the Twilio number (can take a few seconds after the redirect lands).
+// Gives up after 15 attempts (~30 seconds total).
+async function pollForTwilioNumber(email, attempts = 0) {
+  if (attempts >= 15) {
+    console.warn('[onboarding] timed out waiting for provisioned Twilio number');
+    return;
+  }
+  try {
+    const res  = await fetch(`https://callbackai-production.up.railway.app/api/lookup-number?email=${encodeURIComponent(email)}`);
+    const data = await res.json();
+    if (data.twilio_number) {
+      applyForwardingNumber(data.twilio_number);
+      console.log('[onboarding] provisioned number applied:', data.twilio_number);
+      return;
+    }
+  } catch (e) {
+    console.warn('[onboarding] lookup-number error:', e.message);
+  }
+  setTimeout(() => pollForTwilioNumber(email, attempts + 1), 2000);
 }
 
 // ── Step 4: Setup wizard ──────────────────────────────────────────────────────

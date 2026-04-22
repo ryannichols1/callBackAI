@@ -1066,36 +1066,70 @@ app.post('/webhook/test-twiml', validateTwilioSignature, (req, res) => {
 });
 
 // ─── ROUTE: Test call ────────────────────────────────────────────────────────
-// Requires auth — looks up the business owner's phone from Supabase,
-// then places a Twilio call to it using the test TwiML above.
+// No auth required — takes { phone } from body, places a Twilio call to that
+// number, plays a short TwiML message, then fires the initial missed-call SMS
+// directly (8 s delay so the SMS arrives just after the call ends).
+//
+// We trigger the SMS manually rather than relying on the call-status webhook
+// because the webhook's business lookup uses the "To" field (the number that
+// received the call) — which for an outbound test call is the owner's real
+// phone, not their Twilio number.
 
-app.post('/api/test-call', requireAuth, async (req, res) => {
-  const email = req.headers['x-user-email'];
-  if (!email) return res.status(400).json({ error: 'Missing email header' });
+app.post('/api/test-call', async (req, res) => {
+  const { phone } = req.body;
+  if (!phone) return res.status(400).json({ error: 'Missing phone' });
 
+  const cleanPhone = String(phone).replace(/\s/g, '');
+  if (!isValidPhone(cleanPhone)) return res.status(400).json({ error: 'Invalid phone number' });
+
+  // Look up the business by owner phone so we can call from their dedicated number
   const { data: biz } = await supabase
     .from('businesses')
-    .select('phone')
-    .eq('email', email)
-    .single();
+    .select('id, name, industry, twilio_number, custom_sms_template')
+    .eq('phone', cleanPhone)
+    .maybeSingle();
 
-  if (!biz?.phone) return res.status(404).json({ error: 'Business not found' });
-
-  const phone = String(biz.phone).replace(/\s/g, '');
-  if (!isValidPhone(phone)) return res.status(400).json({ error: 'Invalid phone on record' });
+  const fromNumber = biz?.twilio_number || process.env.TWILIO_PHONE_NUMBER;
 
   try {
-    await twilioClient.calls.create({
-      url:    `${RAILWAY_URL}/webhook/test-twiml`,
-      to:     phone,
-      from:   process.env.TWILIO_PHONE_NUMBER,
-    });
-    console.log(`[test-call] initiated to ${maskPhone(phone)}`);
+    const twiml = '<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="alice">This is a test from CallBack AI. Your setup is working. You will now receive a text message.</Say><Hangup/></Response>';
+    await twilioClient.calls.create({ twiml, to: cleanPhone, from: fromNumber });
+    console.log(`[test-call] call placed to ${maskPhone(cleanPhone)}`);
+
+    // Fire the initial missed-call SMS ~8 s after the call so it arrives naturally
+    if (biz) {
+      setTimeout(async () => {
+        try {
+          const smsBody = await generateSMS(biz);
+          await twilioClient.messages.create({ body: smsBody, from: fromNumber, to: cleanPhone });
+          console.log(`[test-call] SMS sent to ${maskPhone(cleanPhone)}`);
+        } catch (err) {
+          console.error('[test-call] SMS error:', err.message);
+        }
+      }, 8000);
+    }
+
     res.json({ success: true });
   } catch (err) {
     console.error('[test-call] error:', err.message);
     res.status(500).json({ error: 'Failed to place call' });
   }
+});
+
+// ─── ROUTE: Lookup provisioned number by email (no auth) ─────────────────────
+// Called by the onboarding page after a Stripe redirect to get the Twilio number
+// the Stripe webhook just assigned. Returns null if provisioning hasn't finished yet
+// — the client polls until it gets a number or times out.
+
+app.get('/api/lookup-number', async (req, res) => {
+  const { email } = req.query;
+  if (!email || !isValidEmail(email)) return res.json({ twilio_number: null });
+  const { data } = await supabase
+    .from('businesses')
+    .select('twilio_number')
+    .eq('email', email)
+    .maybeSingle();
+  res.json({ twilio_number: data?.twilio_number || null });
 });
 
 // ─── ROUTE: Onboard new business ─────────────────────────────────────────────
