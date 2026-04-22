@@ -468,11 +468,12 @@ CallBack AI`.trim();
       method: 'POST',
       headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from:    'Ryan at CallBack AI <hello@callbackai.app>',
-        to:      [toEmail],
-        subject: "You're live — here's what to do next",
-        html:    htmlBody,
-        text:    textBody,
+        from:     'Ryan at CallBack AI <welcome@callbackai.ie>',
+        reply_to: 'welcome@callbackai.ie',
+        to:       [toEmail],
+        subject:  "You're live — here's what to do next",
+        html:     htmlBody,
+        text:     textBody,
       }),
     });
     if (!r.ok) {
