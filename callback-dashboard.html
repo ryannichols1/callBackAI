@@ -58,14 +58,57 @@ body {
   background: var(--bg);
 }
 
+/* White card wrapping logo + clerk widget */
+.auth-card {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 8px 32px rgba(0,0,0,0.08);
+  padding: 40px 40px 32px;
+  width: 100%;
+  max-width: 460px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.auth-logo {
+  margin-bottom: 6px;
+}
+
+.auth-subtitle {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 28px;
+  text-align: center;
+}
+
+.auth-footer {
+  margin-top: 20px;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.auth-footer a {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
 /* The Clerk widget mounts into this div. Without explicit dimensions the widget
    renders into a 0×0 box and appears blank even though it mounted successfully.
    width:100% + max-width lets it shrink on mobile while staying centred. */
 #clerk-sign-in {
-  min-width: 320px;
+  min-width: 280px;
   min-height: 400px;
   width: 100%;
-  max-width: 480px;
+}
+
+/* Hide Clerk's built-in "Don't have an account? Sign up" footer.
+   Clients must sign up via the onboarding flow, not through the dashboard. */
+.cl-footerAction,
+.cl-footerActionLink,
+[data-localization-key="signIn.start.actionLink"] {
+  display: none !important;
 }
 
 /* ── Dashboard ── */
@@ -748,9 +791,11 @@ body {
 
 <!-- Auth -->
 <div id="auth-screen">
-  <div>
-    <div style="text-align:center;margin-bottom:24px">
-      <div><svg width="192" height="48" viewBox="0 0 680 200" role="img">
+  <div class="auth-card">
+
+    <!-- Logo -->
+    <div class="auth-logo">
+      <svg width="200" height="50" viewBox="0 0 680 200" role="img">
 <defs><style>
   .logo-mark { fill: #ff4d1c; }
   .logo-text-callback { fill: #16120e; font-family: 'Georgia', serif; font-size: 48px; font-weight: 700; letter-spacing: -1px; }
@@ -765,12 +810,21 @@ body {
   <text x="72" y="68" class="logo-text-callback">Callback<tspan class="logo-text-ai">.ai</tspan></text>
   <text x="73" y="92" class="tagline">MISSED CALL RECOVERY</text>
 </g>
-</svg></div>
-      <div style="font-size:13px;color:var(--muted);margin-top:6px">
-        Sign in to manage your missed calls
-      </div>
+</svg>
     </div>
+
+    <!-- Subtitle -->
+    <div class="auth-subtitle">Sign in to manage your missed calls</div>
+
+    <!-- Clerk sign-in widget -->
     <div id="clerk-sign-in"></div>
+
+    <!-- Bottom line -->
+    <div class="auth-footer">
+      Don't have an account? Start your free trial at
+      <a href="https://callbackai.ie/callback-onboarding.html">callbackai.ie</a>
+    </div>
+
   </div>
 </div>
 
