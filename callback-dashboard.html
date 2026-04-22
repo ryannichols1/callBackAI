@@ -984,12 +984,19 @@ const _t0  = Date.now();
 
 // ── Module-level state ────────────────────────────────────────────────────────
 let _allCalls    = [];   // cache updated on every poll
-let _authToken   = '';
 let _bizId       = '';
 let _bizEmail    = '';
 let _seenMsgIds  = new Set(); // IDs we've already notified about
 let _unreadCount = 0;
 let _currentView = 'calls';
+
+// Always fetches a fresh Clerk JWT — never cached, so the token is valid even
+// after the original 1-hour expiry window. Clerk returns a cached token if
+// it's still valid, or transparently refreshes it if it's close to expiry.
+async function getToken() {
+  if (!window.Clerk?.session) return null;
+  return await window.Clerk.session.getToken();
+}
 
 // Show a permanent red bar at the top of the page AND stop the spinner.
 // Nothing should spin forever — every code path must call this or show().
@@ -1044,18 +1051,6 @@ async function loadDashboard(clerk) {
     return;
   }
 
-  // Step B: get JWT — session must exist here since clerk.user is set
-  let token;
-  try {
-    if (!clerk.session) throw new Error('clerk.session is null');
-    token = await withTimeout(clerk.session.getToken(), 5000, 'getToken');
-  } catch (e) {
-    document.getElementById('error-area').innerHTML =
-      '<div class="error-banner">Could not get session token: ' + e.message + '. Please refresh the page.</div>';
-    document.getElementById('callList').innerHTML = '';
-    return;
-  }
-
   // Step C0: health-check — confirm server is reachable before spending 5s on auth
   try {
     const healthRes = await fetch(API + '/health');
@@ -1073,6 +1068,7 @@ async function loadDashboard(clerk) {
   // Step C: fetch business
   let biz;
   try {
+    const token = await getToken();
     const r = await withTimeout(
       fetch(API + '/api/my-business', {
         headers: { 'Authorization': 'Bearer ' + token, 'X-User-Email': email }
@@ -1117,12 +1113,13 @@ async function loadDashboard(clerk) {
 
   // Show setup banner until client confirms call forwarding is done
   if (!biz.setup_completed && biz.twilio_number) {
-    showSetupBanner(biz.twilio_number, token, email);
+    showSetupBanner(biz.twilio_number, email);
   }
 
   // Step D: fetch calls
   let calls = [];
   try {
+    const token = await getToken();
     const r = await withTimeout(
       fetch(API + '/api/businesses/' + biz.id + '/calls', {
         headers: { 'Authorization': 'Bearer ' + token }
@@ -1153,28 +1150,40 @@ async function loadDashboard(clerk) {
   if (missedCount > 0) { badge.textContent = missedCount; badge.style.display = 'inline-block'; }
 
   // Store module-level state for polling, test-call, etc.
-  _authToken = token;
-  _bizId     = biz.id;
-  _bizEmail  = email;
-  _allCalls  = calls;
+  _bizId    = biz.id;
+  _bizEmail = email;
+  _allCalls = calls;
 
   // Seed seenMsgIds with all messages already loaded so we only notify about NEW ones
   calls.forEach(c => (c.messages || []).forEach(m => _seenMsgIds.add(m.id)));
 
-  renderCalls(calls, biz.id, token);
+  renderCalls(calls, biz.id);
   renderMessages();
   updateUnreadBadge();
 
   // Request browser notification permission and start polling
   requestNotificationPermission();
   setInterval(pollForNewMessages, 30_000);
+
+  // Proactively touch the Clerk session every 50 minutes so it never expires
+  // while the dashboard is open. Clerk sessions last ~1 hour by default.
+  setInterval(async () => {
+    try {
+      if (window.Clerk?.session) {
+        await window.Clerk.session.touch();
+        console.log('Session refreshed');
+      }
+    } catch (e) {
+      console.warn('Session refresh failed:', e.message);
+    }
+  }, 50 * 60 * 1000);
 }
 
 // ── Setup banner ──────────────────────────────────────────────────────────────
 // Shown once after onboarding until the client clicks "I've set up forwarding".
 // The server sets setup_completed=false on new accounts; we flip it to true here.
 
-function showSetupBanner(twilioNumber, token, email) {
+function showSetupBanner(twilioNumber, email) {
   const banner = document.getElementById('setup-banner');
   if (!banner) return;
   const num = twilioNumber || '';
@@ -1189,15 +1198,14 @@ function showSetupBanner(twilioNumber, token, email) {
     el.textContent = num;
   });
   banner.classList.remove('hidden');
-  // Store for the dismiss handler
-  banner.dataset.token = token;
+  // Store email for the dismiss handler (token is fetched fresh on dismiss)
   banner.dataset.email = email;
 }
 
 async function dismissSetupBanner() {
   const btn    = document.getElementById('setupDoneBtn');
   const banner = document.getElementById('setup-banner');
-  const token  = banner.dataset.token;
+  const token  = await getToken();
   const email  = banner.dataset.email;
   btn.disabled = true;
   btn.textContent = 'Saving...';
@@ -1222,7 +1230,7 @@ function fmtTime(iso) {
   return new Date(iso).toLocaleTimeString('en-IE', { hour: '2-digit', minute: '2-digit' });
 }
 
-function renderCalls(calls, bizId, token) {
+function renderCalls(calls, bizId) {
   const list = document.getElementById('callList');
   if (!calls.length) {
     list.innerHTML = '<div class="empty-state">No calls yet. Once your number is forwarded, missed calls will appear here.</div>';
@@ -1235,7 +1243,7 @@ function renderCalls(calls, bizId, token) {
     const time    = new Date(c.created_at).toLocaleString('en-IE', {
       day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
     const convertBtn = c.status !== 'converted'
-      ? '<button class="convert-btn" onclick="event.stopPropagation();markConverted(\'' + c.id + '\',this,\'' + token + '\')">Mark Converted</button>'
+      ? '<button class="convert-btn" onclick="event.stopPropagation();markConverted(\'' + c.id + '\',this)">Mark Converted</button>'
       : '';
 
     // Sort messages ascending by sent_at
@@ -1271,9 +1279,9 @@ function renderCalls(calls, bizId, token) {
         + '<div class="conv-messages" id="' + msgsId + '">' + bubbles + '</div>'
         + '<div class="conv-reply">'
           + '<textarea class="conv-input" id="' + inputId + '" placeholder="Type a reply..." rows="1"'
-          + ' onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();sendReply(\'' + c.id + '\',\'' + token + '\',\'' + inputId + '\',\'' + msgsId + '\',\'' + btnId + '\')}"></textarea>'
+          + ' onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();sendReply(\'' + c.id + '\',\'' + inputId + '\',\'' + msgsId + '\',\'' + btnId + '\')}"></textarea>'
           + '<button class="conv-send-btn" id="' + btnId + '"'
-          + ' onclick="sendReply(\'' + c.id + '\',\'' + token + '\',\'' + inputId + '\',\'' + msgsId + '\',\'' + btnId + '\')">Send</button>'
+          + ' onclick="sendReply(\'' + c.id + '\',\'' + inputId + '\',\'' + msgsId + '\',\'' + btnId + '\')">Send</button>'
         + '</div>'
       + '</div>'
     );
@@ -1302,7 +1310,7 @@ function toggleConversation(callId) {
   }
 }
 
-async function sendReply(callId, token, inputId, msgsId, btnId) {
+async function sendReply(callId, inputId, msgsId, btnId) {
   const input = document.getElementById(inputId);
   const msgs  = document.getElementById(msgsId);
   const btn   = document.getElementById(btnId);
@@ -1313,6 +1321,7 @@ async function sendReply(callId, token, inputId, msgsId, btnId) {
   btn.textContent = 'Sending...';
 
   try {
+    const token = await getToken();
     const r = await fetch(API + '/api/calls/' + callId + '/reply', {
       method: 'POST',
       headers: {
@@ -1348,9 +1357,10 @@ async function sendReply(callId, token, inputId, msgsId, btnId) {
   btn.textContent = 'Send';
 }
 
-async function markConverted(callId, btn, token) {
+async function markConverted(callId, btn) {
   btn.disabled = true; btn.textContent = 'Saving...';
   try {
+    const token = await getToken();
     const r = await fetch(API + '/api/calls/' + callId + '/convert', {
       method: 'POST', headers: { 'Authorization': 'Bearer ' + token }
     });
@@ -1458,9 +1468,10 @@ async function testCall() {
   feedback.textContent = '';
   feedback.style.color = '';
   try {
+    const token = await getToken();
     const r = await fetch(API + '/api/test-call', {
       method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + _authToken, 'X-User-Email': _bizEmail },
+      headers: { 'Authorization': 'Bearer ' + token, 'X-User-Email': _bizEmail },
     });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || 'HTTP ' + r.status);
@@ -1498,10 +1509,12 @@ function showNotification(body) {
 }
 
 async function pollForNewMessages() {
-  if (!_authToken || !_bizId) return;
+  if (!_bizId) return;
   try {
+    const token = await getToken();
+    if (!token) return;
     const r = await fetch(API + '/api/businesses/' + _bizId + '/calls', {
-      headers: { 'Authorization': 'Bearer ' + _authToken },
+      headers: { 'Authorization': 'Bearer ' + token },
     });
     if (!r.ok) return;
     const freshCalls = await r.json();
@@ -1519,7 +1532,7 @@ async function pollForNewMessages() {
     if (_currentView === 'calls') {
       // Re-render call list silently to pick up new messages in threads
       const list = document.getElementById('callList');
-      if (list && freshCalls.length) renderCalls(freshCalls, _bizId, _authToken);
+      if (list && freshCalls.length) renderCalls(freshCalls, _bizId);
     }
     if (hasNew) showNotification('New message from a customer — tap to view');
   } catch (_) { /* silently ignore poll errors */ }
