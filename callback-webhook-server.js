@@ -185,15 +185,22 @@ async function provisionBusiness({ businessName, industry, phone, email, clerkUs
     console.log(`[provision] no existing record found — proceeding with provisioning`);
   }
 
-  // ── Step 1: Search for available US number ────────────────────────────────
-  console.log('[provision] STEP 1 — searching for available US Twilio number...');
-  const available = await twilioClient.availablePhoneNumbers('US')
-    .local.list({ smsEnabled: true, voiceEnabled: true, limit: 1 });
+  // ── Step 1: Search for available UK mobile number ────────────────────────
+  // UK (+44) mobile numbers work from Irish phones as standard international SMS,
+  // unlike US (+1) numbers which many Irish carriers block or charge extra for.
+  // We fetch 20 candidates and filter out beta numbers (newly added, may have
+  // restrictions) to maximise the chance of getting a fully capable number.
+  console.log('[provision] STEP 1 — searching for available UK mobile number...');
+  const available = await twilioClient.availablePhoneNumbers('GB')
+    .mobile.list({ smsEnabled: true, voiceEnabled: true, limit: 20 });
 
-  if (!available.length) throw new Error('No US numbers available');
+  if (!available.length) throw new Error('No UK numbers available');
 
-  const availableNumber = available[0].phoneNumber;
-  console.log(`[provision] STEP 1 OK — found number ${maskPhone(availableNumber)}`);
+  // Prefer non-beta numbers — beta numbers may carry domestic-only SMS restrictions
+  const usable = available.filter(n => n.beta === false);
+  const chosen = usable[0] || available[0]; // fall back to any available if all are beta
+  const availableNumber = chosen.phoneNumber;
+  console.log(`[provision] STEP 1 OK — found UK number: ${maskPhone(availableNumber)} | beta: ${chosen.beta}`);
 
   // ── Step 2: Purchase the number ───────────────────────────────────────────
   console.log('[provision] STEP 2 — purchasing Twilio number...');
