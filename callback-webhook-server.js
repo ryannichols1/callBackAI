@@ -749,16 +749,34 @@ async function processInboundSms(from, rawBody, toNumber) {
     return;
   }
 
-  // ── 7. Fetch business — name and industry only, no PII ────────────────────
+  // ── 7. Fetch business ─────────────────────────────────────────────────────
   const { data: business } = await supabase
     .from('businesses')
-    .select('name, industry') // deliberately omits email, stripe IDs, phone
+    .select('name, industry, phone, twilio_number') // phone + twilio_number for owner notification
     .eq('id', businessId)
     .single();
 
   if (!business) {
     console.log(`[ai-sms] business not found for id: ${businessId}`);
     return;
+  }
+
+  // ── 7a. Notify owner on first customer reply ──────────────────────────────
+  // Only fires once per conversation (inboundCount === 1) so the owner isn't
+  // spammed on every exchange. Uses the business's own Twilio number so the
+  // owner recognises the sender.
+  if (inboundCount === 1 && business.phone && isValidPhone(business.phone)) {
+    const ownerPhone   = business.phone;
+    const fromNumber   = business.twilio_number || process.env.TWILIO_PHONE_NUMBER;
+    const preview      = safeBody.slice(0, 100);
+    const notification = `New message from a customer: '${preview}' - View: callbackai.ie/callback-dashboard.html`;
+    console.log(`[sms-reply] notifying owner: ${maskPhone(ownerPhone)}`);
+    try {
+      await twilioClient.messages.create({ body: notification, from: fromNumber, to: ownerPhone });
+      console.log(`[sms-reply] owner notified`);
+    } catch (err) {
+      console.error(`[sms-reply] owner notification failed: ${err.message} | code: ${err.code}`);
+    }
   }
 
   // ── 8. Build Claude messages array from conversation history ─────────────
