@@ -414,7 +414,7 @@ async function sendWelcomeEmail(toEmail, bizName, twilioNumber) {
 
   const textBody = `Hi ${name},
 
-You're all set up on CallBack AI. Here's everything you need to get started.
+Thanks for joining CallBack AI. Here's everything you need to get started.
 
 Your dedicated number is:
 ${displayNumber}
@@ -424,7 +424,12 @@ ${dialCode}
 
 That's it. Takes about 10 seconds. Once that's done, any call you miss will get an automatic text back within 14 seconds.
 
-If the dial code doesn't work on your network, just call your provider and ask them to set up unanswered call divert to your CallBack AI number. They can do it in a few minutes.
+If the dial code doesn't work, here are the instructions for your network:
+
+Vodafone: Call 1907 and ask them to set up unanswered call divert to ${displayNumber}
+Three: My3 app → Account → Call settings → Call divert → No answer → enter ${displayNumber}
+Eir: Call 1901 and ask them to set up unanswered call divert to ${displayNumber}
+Landline: Dial ${dialCode} from your phone and press call
 
 Your dashboard is at callbackai.ie/callback-dashboard.html — that's where you'll see all your missed calls and conversations.
 
@@ -433,32 +438,55 @@ If you have any questions just reply to this email and I'll get back to you.
 Ryan
 CallBack AI`.trim();
 
+  const p  = 'margin:0 0 20px;font-family:Arial,Georgia,sans-serif;font-size:15px;line-height:1.65;color:#333333';
+  const sm = 'margin:0 0 6px;font-family:Arial,Georgia,sans-serif;font-size:13px;line-height:1.5;color:#666666';
+
   const htmlBody = `<!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"></head>
-<body style="margin:0;padding:0;background:#ffffff">
-<div style="max-width:560px;margin:0 auto;padding:40px 24px;font-family:Georgia,'Times New Roman',serif;font-size:16px;line-height:1.7;color:#1a1a1a">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f9f9f9">
+<div style="max-width:600px;margin:0 auto;padding:32px 16px">
+<div style="background:#ffffff;padding:32px 24px;border-radius:4px">
 
-  <p style="margin:0 0 24px">Hi ${name},</p>
+  <p style="${p}">Hi ${name},</p>
 
-  <p style="margin:0 0 24px">You're all set up on CallBack AI. Here's everything you need to get started.</p>
+  <p style="${p}">Thanks for joining CallBack AI. Here's everything you need to get started.</p>
 
-  <p style="margin:0 0 8px">Your dedicated number is:</p>
-  <p style="margin:0 0 24px;font-family:'Courier New',monospace;font-size:20px;font-weight:700;letter-spacing:0.04em;color:#1a1a1a">${displayNumber}</p>
+  <p style="${sm}">Your dedicated number:</p>
+  <p style="margin:0 0 20px;font-family:'Courier New',monospace;font-size:18px;font-weight:700;color:#333333">${displayNumber}</p>
 
-  <p style="margin:0 0 8px">To activate it, dial this from your phone and press call:</p>
-  <p style="margin:0 0 24px;font-family:'Courier New',monospace;font-size:20px;font-weight:700;letter-spacing:0.04em;color:#1a1a1a">${dialCode}</p>
+  <p style="${sm}">To activate it, dial this from your phone and press call:</p>
+  <p style="margin:0 0 20px;font-family:'Courier New',monospace;font-size:18px;font-weight:700;color:#333333">${dialCode}</p>
 
-  <p style="margin:0 0 24px">That's it. Takes about 10 seconds. Once that's done, any call you miss will get an automatic text back within 14 seconds.</p>
+  <p style="${p}">That's it. Takes about 10 seconds. Once that's done, any call you miss will get an automatic text back within 14 seconds.</p>
 
-  <p style="margin:0 0 24px">If the dial code doesn't work on your network, just call your provider and ask them to set up unanswered call divert to your CallBack AI number. They can do it in a few minutes.</p>
+  <p style="margin:0 0 8px;font-family:Arial,Georgia,sans-serif;font-size:15px;line-height:1.65;color:#333333">If the dial code doesn't work, here are the instructions for your network:</p>
+  <table style="width:100%;border-collapse:collapse;margin:0 0 20px;font-family:Arial,Georgia,sans-serif;font-size:14px;color:#333333">
+    <tr style="border-bottom:1px solid #eeeeee">
+      <td style="padding:9px 12px 9px 0;font-weight:600;white-space:nowrap;vertical-align:top;width:90px">Vodafone</td>
+      <td style="padding:9px 0;color:#555555">Call <strong>1907</strong> and ask them to set up unanswered call divert to ${displayNumber}</td>
+    </tr>
+    <tr style="border-bottom:1px solid #eeeeee">
+      <td style="padding:9px 12px 9px 0;font-weight:600;white-space:nowrap;vertical-align:top">Three</td>
+      <td style="padding:9px 0;color:#555555">My3 app → Account → Call settings → Call divert → No answer → enter ${displayNumber}</td>
+    </tr>
+    <tr style="border-bottom:1px solid #eeeeee">
+      <td style="padding:9px 12px 9px 0;font-weight:600;white-space:nowrap;vertical-align:top">Eir</td>
+      <td style="padding:9px 0;color:#555555">Call <strong>1901</strong> and ask them to set up unanswered call divert to ${displayNumber}</td>
+    </tr>
+    <tr>
+      <td style="padding:9px 12px 9px 0;font-weight:600;white-space:nowrap;vertical-align:top">Landline</td>
+      <td style="padding:9px 0;color:#555555">Dial <strong>${dialCode}</strong> from your phone and press call</td>
+    </tr>
+  </table>
 
-  <p style="margin:0 0 24px">Your dashboard is at <a href="https://callbackai.ie/callback-dashboard.html" style="color:#1a1a1a">callbackai.ie/callback-dashboard.html</a> — that's where you'll see all your missed calls and conversations.</p>
+  <p style="${p}">Your dashboard is at <a href="https://callbackai.ie/callback-dashboard.html" style="color:#333333">callbackai.ie/callback-dashboard.html</a> — that's where you'll see all your missed calls and conversations.</p>
 
-  <p style="margin:0 0 24px">If you have any questions just reply to this email and I'll get back to you.</p>
+  <p style="${p}">If you have any questions just reply to this email and I'll get back to you.</p>
 
-  <p style="margin:0">Ryan<br>CallBack AI</p>
+  <p style="margin:0;font-family:Arial,Georgia,sans-serif;font-size:15px;line-height:1.65;color:#333333">Ryan<br>CallBack AI</p>
 
+</div>
 </div>
 </body>
 </html>`;
@@ -471,7 +499,7 @@ CallBack AI`.trim();
         from:     'Ryan at CallBack AI <welcome@callbackai.ie>',
         reply_to: 'welcome@callbackai.ie',
         to:       [toEmail],
-        subject:  "You're live — here's what to do next",
+        subject:  'Thanks for joining CallBack AI',
         html:     htmlBody,
         text:     textBody,
       }),
