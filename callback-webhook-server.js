@@ -649,7 +649,8 @@ function buildAiSystemPrompt(bizName, bizIndustry) {
 ${industryGoal}
 Reply in 1–2 short sentences. Be warm and friendly.
 Never invent prices, times or availability — the owner will confirm all details.
-If asked directly, say you are an AI assistant for ${name}, not a human.`;
+If asked directly, say you are an AI assistant for ${name}, not a human.
+Do not use any emojis. Keep the tone friendly but professional. Plain text only.`;
 }
 
 /**
@@ -662,7 +663,7 @@ async function sendAndLogSms(fromNumber, toNumber, body, callId) {
     // Log SID only — content is never written to logs (privacy)
     console.log(`[ai-sms] sent | call: ${callId} | twilio_sid: ${result.sid}`);
   } catch (err) {
-    console.error(`[ai-sms] Twilio send failed | call: ${callId} | ${err.message}`);
+    console.error(`[ai-sms] Twilio send failed | call: ${callId} | ${err.message} | code: ${err.code}`);
     return; // Don't log a message that was never delivered
   }
   const { data: msg, error } = await supabase
@@ -737,8 +738,12 @@ async function processInboundSms(from, rawBody, toNumber) {
   if (!messages?.length) return;
 
   // ── 6. Message limit — hand off to human after AI_MAX_MESSAGES ────────────
-  if (messages.length >= AI_MAX_MESSAGES) {
-    console.log(`[ai-sms] message limit reached (${messages.length}) | call: ${callId}`);
+  // Count only inbound (customer) messages — outbound messages would halve
+  // the effective limit and cause handoff far sooner than intended.
+  const inboundCount = messages.filter(m => m.direction === 'inbound').length;
+  console.log(`[ai-sms] message counts | total: ${messages.length} | inbound: ${inboundCount} | limit: ${AI_MAX_MESSAGES} | call: ${callId}`);
+  if (inboundCount >= AI_MAX_MESSAGES) {
+    console.log(`[ai-sms] message limit reached (${inboundCount} inbound) | call: ${callId}`);
     _aiRateLimit.set(from, now);
     await sendAndLogSms(toNumber, from, SMS_HANDOFF, callId);
     return;
@@ -816,6 +821,7 @@ async function processInboundSms(from, rawBody, toNumber) {
   }
 
   // ── 11. Send reply and update rate limiter ────────────────────────────────
+  console.log(`[sms-reply] sending reply to: ${maskPhone(from)} | message length: ${replyText.length}`);
   _aiRateLimit.set(from, now);
   await sendAndLogSms(toNumber, from, replyText, callId);
 }
