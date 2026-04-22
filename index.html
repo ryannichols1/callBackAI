@@ -84,6 +84,65 @@ nav {
 }
 .nav-login:hover { background: var(--ink); color: #fff; }
 
+/* HAMBURGER */
+.nav-hamburger {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--ink);
+  padding: 4px 8px;
+  line-height: 1;
+}
+
+/* MOBILE MENU */
+.mobile-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0; right: 0;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 20px 20px;
+  flex-direction: column;
+  gap: 0;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+  z-index: 99;
+}
+.mobile-menu.open { display: flex; }
+.mobile-menu a {
+  text-decoration: none;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 500;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  display: block;
+}
+.mobile-menu .mob-login,
+.mobile-menu .mob-cta {
+  display: block;
+  text-align: center;
+  border-radius: 6px;
+  font-weight: 600;
+  font-family: 'Hanken Grotesk', sans-serif;
+  padding: 12px 20px;
+  margin-top: 8px;
+  border-bottom: none;
+  cursor: pointer;
+}
+.mobile-menu .mob-login {
+  border: 1.5px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+}
+.mobile-menu .mob-cta {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+}
+
 /* HERO */
 .hero {
   min-height: 100vh;
@@ -448,7 +507,8 @@ footer {
 @media (max-width: 768px) {
   nav { padding: 14px 20px; }
   .nav-links { display: none; }
-  .nav-login { display: none; }
+  .nav-actions { display: none; }
+  .nav-hamburger { display: block; }
   .stats-band { flex-direction: column; gap: 24px; }
   .stat-item { border-right: none; border-bottom: 1px solid rgba(255,255,255,0.1); padding: 16px 0; }
   .problem-grid, .steps, .industries { grid-template-columns: 1fr; }
@@ -456,6 +516,7 @@ footer {
   .hero-ctas { flex-direction: column; align-items: stretch; }
   .btn-big { width: 100%; text-align: center; }
   .cta-btn { width: 100%; box-sizing: border-box; }
+  footer { flex-direction: column; align-items: center; text-align: center; gap: 16px; padding: 32px 20px; }
 }
 </style>
 </head>
@@ -483,9 +544,18 @@ footer {
     <li><a href="#industries">Industries</a></li>
     <li><a href="#pricing">Pricing</a></li>
   </ul>
-  <div style="display:flex;align-items:center;gap:8px">
+  <div class="nav-actions" style="display:flex;align-items:center;gap:8px">
     <a href="callback-dashboard.html" class="nav-login">Client Login</a>
     <a href="/callback-onboarding.html" class="nav-cta">Start Free Trial →</a>
+  </div>
+  <button class="nav-hamburger" onclick="toggleMenu()" aria-label="Open menu">☰</button>
+
+  <div class="mobile-menu" id="mobile-menu">
+    <a href="#how" onclick="closeMenu()">How it works</a>
+    <a href="#industries" onclick="closeMenu()">Industries</a>
+    <a href="#pricing" onclick="closeMenu()">Pricing</a>
+    <a href="/callback-dashboard.html" class="mob-login" onclick="closeMenu()">Client Login</a>
+    <a href="/callback-onboarding.html" class="mob-cta" onclick="closeMenu()">Start Free Trial →</a>
   </div>
 </nav>
 
@@ -538,7 +608,7 @@ footer {
     <div class="problem-card reveal">
       <div class="problem-icon"></div>
       <div class="problem-title">Each call is worth hundreds</div>
-      <div class="problem-text">A missed plumber call averages €280. A missed dental appointment €180. It adds up fast.</div>
+      <div class="problem-text">Every missed call is a potential job gone to a competitor. It adds up fast.</div>
     </div>
   </div>
 </section>
@@ -655,6 +725,7 @@ footer {
   <text x="73" y="92" class="tagline-f">MISSED CALL RECOVERY</text>
 </g>
 </svg></a>
+  <div><a href="mailto:info@callbackai.ie" style="color:rgba(255,255,255,0.55);text-decoration:none">info@callbackai.ie</a></div>
   <div>© 2026 CallBack AI</div>
   <div>Privacy · Terms · Contact</div>
 </footer>
@@ -666,8 +737,19 @@ const observer = new IntersectionObserver((entries) => {
     if (e.isIntersecting) { e.target.classList.add('visible'); }
   });
 }, { threshold: 0.1 });
-
 document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+// Mobile menu
+function toggleMenu() {
+  const menu = document.getElementById('mobile-menu');
+  const btn  = document.querySelector('.nav-hamburger');
+  menu.classList.toggle('open');
+  btn.textContent = menu.classList.contains('open') ? '✕' : '☰';
+}
+function closeMenu() {
+  document.getElementById('mobile-menu').classList.remove('open');
+  document.querySelector('.nav-hamburger').textContent = '☰';
+}
 </script>
 </body>
 </html>
