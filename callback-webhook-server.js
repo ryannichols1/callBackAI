@@ -1256,6 +1256,45 @@ app.post('/api/my-business/setup-complete', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
+// ─── ROUTE: Stripe Billing Portal ────────────────────────────────────────────
+// Creates a Stripe Customer Portal session so clients can manage or cancel
+// their subscription. The portal URL is returned to the dashboard, which
+// redirects the user. Requires Clerk auth so only the account holder can access.
+
+app.post('/api/create-portal-session', requireAuth, async (req, res) => {
+  const email = req.headers['x-user-email'];
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ error: 'Missing email' });
+  }
+
+  const { data: business, error } = await supabase
+    .from('businesses')
+    .select('stripe_customer_id')
+    .eq('email', email)
+    .maybeSingle();
+
+  if (error) {
+    console.error(`[portal] DB error for ${maskEmail(email)}:`, error.message);
+    return res.status(500).json({ error: 'Failed to look up account' });
+  }
+  if (!business?.stripe_customer_id) {
+    console.warn(`[portal] no stripe_customer_id for ${maskEmail(email)}`);
+    return res.status(404).json({ error: 'No billing account found. Please contact support.' });
+  }
+
+  try {
+    const session = await stripe.billingPortal.sessions.create({
+      customer:   business.stripe_customer_id,
+      return_url: 'https://callbackai.ie/callback-dashboard.html',
+    });
+    console.log(`[portal] created session for ${maskEmail(email)}`);
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error(`[portal] Stripe error for ${maskEmail(email)}:`, err.message);
+    res.status(500).json({ error: 'Failed to create portal session' });
+  }
+});
+
 // ─── Catch-all 404 ────────────────────────────────────────────────────────────
 
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));

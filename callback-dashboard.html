@@ -872,6 +872,10 @@ body {
         <button class="signout-btn" id="testCallBtn" onclick="testCall()" style="margin-bottom:8px;background:rgba(255,77,28,0.15);border-color:rgba(255,77,28,0.3);color:#ff7a52">Test your setup</button>
         <p id="testCallFeedback"></p>
         <button class="signout-btn" onclick="signOut()">Sign out</button>
+        <a href="#" id="manageSubLink" onclick="event.preventDefault();manageSubscription()"
+           style="display:block;text-align:center;font-size:11px;color:rgba(255,255,255,0.28);margin-top:12px;text-decoration:none;transition:color 0.15s"
+           onmouseover="this.style.color='rgba(255,255,255,0.5)'"
+           onmouseout="this.style.color='rgba(255,255,255,0.28)'">Manage subscription</a>
       </div>
     </aside>
 
@@ -1032,6 +1036,28 @@ function redirectToSignIn() {
 async function signOut() {
   await window.Clerk.signOut();
   redirectToSignIn();
+}
+
+async function manageSubscription() {
+  const link = document.getElementById('manageSubLink');
+  const orig = 'Manage subscription';
+  if (link) link.textContent = 'Loading...';
+  try {
+    const token = await getToken();
+    const r = await fetch(API + '/api/create-portal-session', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'X-User-Email':  _bizEmail,
+      },
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'HTTP ' + r.status);
+    window.location.href = d.url;
+  } catch (e) {
+    if (link) link.textContent = orig;
+    alert('Could not open billing portal: ' + e.message);
+  }
 }
 
 // ── Dashboard data loader ─────────────────────────────────────────────────────
