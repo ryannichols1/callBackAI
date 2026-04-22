@@ -587,7 +587,7 @@ async function updateCallStatus(callId, status) {
 // Prevents AI reply loops and SMS bombing — max 1 AI reply per minute per number.
 // Map<E164Phone, lastRepliedMs>
 const _aiRateLimit = new Map();
-const AI_RATE_LIMIT_MS = 60_000; // 1 minute
+const AI_RATE_LIMIT_MS = 10_000; // 10 seconds
 
 // After this many messages in a thread we stop the AI and send a human handoff.
 // Prevents infinite loops and keeps Railway costs bounded.
