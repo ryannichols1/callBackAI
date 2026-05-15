@@ -1312,7 +1312,7 @@ app.post('/api/simulate-call', requireAuth, async (req, res) => {
   // ── Look up business ──────────────────────────────────────────────────────
   const { data: business, error: bizError } = await supabase
     .from('businesses')
-    .select('id, name, industry, twilio_number, custom_sms_template')
+    .select('*')
     .eq('email', email)
     .maybeSingle();
 
@@ -1325,8 +1325,9 @@ app.post('/api/simulate-call', requireAuth, async (req, res) => {
   }
 
   console.log(`[simulate] START for ${maskEmail(email)} | biz: "${safeName(business.name)}"`);
+  console.log(`[simulate] business found: ${business.name} | phone: ${business.phone || 'null'} | twilio: ${business.twilio_number || 'null'}`);
 
-  const FAKE_CALLER = '+353000000000';
+  const callerNumber = business.phone || '+353000000001';
   const CUSTOMER_MSG = 'Hi yes I need a quote for a new boiler';
 
   try {
@@ -1335,7 +1336,7 @@ app.post('/api/simulate-call', requireAuth, async (req, res) => {
       .from('calls')
       .insert({
         business_id:   business.id,
-        caller_number: FAKE_CALLER,
+        caller_number: callerNumber,
         call_sid:      `SIM_${Date.now()}`,
         status:        'missed',
         caller_name:   'Test Caller',
