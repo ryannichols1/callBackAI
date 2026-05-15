@@ -852,6 +852,7 @@ body {
       <div class="sidebar-footer">
         <button class="signout-btn" id="testCallBtn" onclick="testCall()" style="margin-bottom:8px;background:rgba(255,77,28,0.15);border-color:rgba(255,77,28,0.3);color:#ff7a52">Test your setup</button>
         <p id="testCallFeedback"></p>
+        <button onclick="runSimulation()" style="background:#ff4d1c;color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;font-size:13px;margin:8px 0;width:100%;font-family:'Epilogue',sans-serif">Run Full Simulation</button>
         <button class="signout-btn" onclick="signOut()">Sign out</button>
         <a href="#" id="manageSubLink" onclick="event.preventDefault();manageSubscription()"
            style="display:block;text-align:center;font-size:11px;color:rgba(255,255,255,0.28);margin-top:12px;text-decoration:none;transition:color 0.15s"
@@ -1504,6 +1505,20 @@ async function testCall() {
   btn.disabled = false;
   btn.textContent = 'Test your setup';
   setTimeout(() => { feedback.textContent = ''; }, 6000);
+}
+
+// ── Simulate full flow (dev only — remove before production) ──────────────────
+async function runSimulation() {
+  const token = await getFreshToken();
+  const res = await fetch(API + '/api/simulate-call', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + token,
+      'X-User-Email':  _bizEmail,
+    },
+  });
+  const data = await res.json();
+  alert(JSON.stringify(data, null, 2));
 }
 
 // ── Mobile sidebar ────────────────────────────────────────────────────────────
