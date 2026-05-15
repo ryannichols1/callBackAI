@@ -1297,6 +1297,125 @@ app.post('/api/create-portal-session', requireAuth, async (req, res) => {
   }
 });
 
+// ─── ROUTE: Simulate missed call + AI reply (auth required) ──────────────────
+// Runs the full missed-call → outbound SMS → customer reply → AI reply flow
+// without placing a real Twilio call or sending any real SMS. Every step
+// writes real records to Supabase so the dashboard shows a live simulation.
+// Useful for verifying the AI prompt, SMS template, and DB writes are all working.
+
+app.post('/api/simulate-call', requireAuth, async (req, res) => {
+  const email = req.headers['x-user-email'];
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ error: 'Missing email' });
+  }
+
+  // ── Look up business ──────────────────────────────────────────────────────
+  const { data: business, error: bizError } = await supabase
+    .from('businesses')
+    .select('id, name, industry, twilio_number, custom_sms_template')
+    .eq('email', email)
+    .maybeSingle();
+
+  if (bizError) {
+    console.error(`[simulate] DB error for ${maskEmail(email)}:`, bizError.message);
+    return res.status(500).json({ error: 'Failed to look up business' });
+  }
+  if (!business) {
+    return res.status(404).json({ error: 'Business not found' });
+  }
+
+  console.log(`[simulate] START for ${maskEmail(email)} | biz: "${safeName(business.name)}"`);
+
+  const FAKE_CALLER = '+353000000000';
+  const CUSTOMER_MSG = 'Hi yes I need a quote for a new boiler';
+
+  try {
+    // ── Step 1: Create fake call record ──────────────────────────────────────
+    const { data: call, error: callError } = await supabase
+      .from('calls')
+      .insert({
+        business_id:   business.id,
+        caller_number: FAKE_CALLER,
+        call_sid:      `SIM_${Date.now()}`,
+        status:        'missed',
+        caller_name:   'Test Caller',
+      })
+      .select()
+      .single();
+
+    if (callError) {
+      console.error(`[simulate] call insert failed:`, callError.message);
+      return res.status(500).json({ error: 'Failed to create call record' });
+    }
+    console.log(`[simulate] STEP 1 OK — call record: ${call.id}`);
+
+    // ── Step 2: Generate initial missed-call SMS (no Twilio send) ────────────
+    const initialSMS = await generateSMS(business);
+
+    const { error: outErr } = await supabase
+      .from('messages')
+      .insert({ call_id: call.id, direction: 'outbound', body: initialSMS });
+
+    if (outErr) console.error(`[simulate] outbound message log failed:`, outErr.message);
+    console.log(`[simulate] STEP 2 OK — initial SMS logged (${initialSMS.length} chars)`);
+
+    // ── Step 3: Log fake customer reply ──────────────────────────────────────
+    const { error: inErr } = await supabase
+      .from('messages')
+      .insert({ call_id: call.id, direction: 'inbound', body: CUSTOMER_MSG });
+
+    if (inErr) console.error(`[simulate] inbound message log failed:`, inErr.message);
+    console.log(`[simulate] STEP 3 OK — customer reply logged`);
+
+    // ── Step 4: Build Claude prompt (mirrors processInboundSms exactly) ───────
+    const systemPrompt = buildAiSystemPrompt(business.name, business.industry);
+    const fullSystem   = systemPrompt +
+      `\n\nThe initial SMS you sent to the customer was:\n"${initialSMS.slice(0, 320)}"`;
+
+    // ── Step 5: Call Claude ───────────────────────────────────────────────────
+    let aiReply;
+    try {
+      if (!anthropic) throw new Error('Anthropic client not initialised');
+      const response = await anthropic.messages.create({
+        model:      'claude-haiku-4-5-20251001',
+        max_tokens: 100,
+        system:     fullSystem,
+        messages:   [{ role: 'user', content: CUSTOMER_MSG }],
+      });
+      aiReply = response.content[0].text.trim();
+      if (aiReply.length > 320) aiReply = aiReply.slice(0, 317) + '...';
+    } catch (err) {
+      console.error(`[simulate] Claude API error:`, err.message);
+      aiReply = SMS_FALLBACK;
+    }
+
+    // Log AI reply (no Twilio send)
+    const { error: replyErr } = await supabase
+      .from('messages')
+      .insert({ call_id: call.id, direction: 'outbound', body: aiReply });
+
+    if (replyErr) console.error(`[simulate] AI reply log failed:`, replyErr.message);
+    console.log(`[simulate] STEP 5 OK — AI reply logged (${aiReply.length} chars)`);
+
+    console.log(`[simulate] COMPLETE | call: ${call.id} | biz: "${safeName(business.name)}"`);
+
+    res.json({
+      success:         true,
+      businessFound:   business.name,
+      twilioNumber:    business.twilio_number,
+      initialSMS,
+      customerReply:   CUSTOMER_MSG,
+      aiReply,
+      callRecord:      { id: call.id },
+      messagesCreated: 3,
+    });
+
+  } catch (err) {
+    console.error(`[simulate] unhandled error for ${maskEmail(email)}:`, err.message, err.stack);
+    res.status(500).json({ error: 'Simulation failed' });
+  }
+});
+
 // ─── Catch-all 404 ────────────────────────────────────────────────────────────
 
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));
