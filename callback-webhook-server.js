@@ -67,9 +67,10 @@ const REQUIRED_ENV = [
   'STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID', 'STRIPE_WEBHOOK_SECRET', 'CLERK_SECRET_KEY',
 ];
 const OPTIONAL_ENV = [
-  'RAILWAY_URL',   // fallback to hardcoded Railway domain if absent
-  'RESEND_API_KEY', // welcome email — skipped silently if absent
-  'PORT',           // defaults to 3000
+  'RAILWAY_URL',         // fallback to hardcoded Railway domain if absent
+  'RESEND_API_KEY',      // welcome email — skipped silently if absent
+  'TWILIO_BUNDLE_SID_GB', // regulatory bundle for UK number purchases
+  'PORT',                // defaults to 3000
 ];
 
 // Log every var by name (NOT value) so Railway logs show exactly what is/isn't set
@@ -212,6 +213,7 @@ async function provisionBusiness({ businessName, industry, phone, email, clerkUs
     statusCallbackMethod: 'POST',
     smsUrl:               `${RAILWAY_URL}/webhook/sms-reply`,
     smsMethod:            'POST',
+    bundleSid:            process.env.TWILIO_BUNDLE_SID_GB,
   });
 
   const twilioNumber = purchased.phoneNumber;
